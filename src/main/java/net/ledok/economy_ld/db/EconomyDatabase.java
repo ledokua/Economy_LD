@@ -1,5 +1,9 @@
 package net.ledok.economy_ld.db;
 
+import net.ledok.economy_ld.shop.ShopRecord;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+
 import java.util.UUID;
 import java.util.Optional;
 import java.util.OptionalLong;
@@ -27,4 +31,16 @@ public interface EconomyDatabase {
             String toUsername,
             long amount
     );
+
+    CompletableFuture<Void> upsertShop(
+            UUID shopId,
+            UUID ownerUuid,
+            boolean isAdmin,
+            ResourceLocation dimension,
+            BlockPos pos
+    );
+
+    CompletableFuture<Optional<ShopRecord>> getShop(UUID shopId);
+
+    CompletableFuture<Void> deleteShop(UUID shopId);
 }

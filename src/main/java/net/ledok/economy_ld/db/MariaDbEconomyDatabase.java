@@ -46,6 +46,21 @@ public final class MariaDbEconomyDatabase extends AbstractJdbcEconomyDatabase {
     }
 
     @Override
+    protected String upsertShopSql() {
+        return """
+                INSERT INTO shops (id, owner_uuid, is_admin, world, x, y, z, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE
+                    owner_uuid = VALUES(owner_uuid),
+                    is_admin = VALUES(is_admin),
+                    world = VALUES(world),
+                    x = VALUES(x),
+                    y = VALUES(y),
+                    z = VALUES(z)
+                """;
+    }
+
+    @Override
     protected void upsertWallet(Connection conn, UUID uuid, String username) throws SQLException {
         try (PreparedStatement upsert = conn.prepareStatement("""
                 INSERT INTO wallets (uuid, username, balance)

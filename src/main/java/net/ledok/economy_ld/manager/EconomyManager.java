@@ -4,6 +4,9 @@ import net.ledok.economy_ld.config.ConfigLoader;
 import net.ledok.economy_ld.config.EconomyConfig;
 import net.ledok.economy_ld.db.DatabaseFactory;
 import net.ledok.economy_ld.db.EconomyDatabase;
+import net.ledok.economy_ld.shop.ShopRecord;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
 import org.slf4j.Logger;
 
 import java.util.UUID;
@@ -109,6 +112,24 @@ public final class EconomyManager {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Cannot transfer to self"));
         }
         return requireDatabase().transfer(fromUuid, fromUsername, toUuid, toUsername, amount);
+    }
+
+    public CompletableFuture<Void> upsertShop(
+            UUID shopId,
+            UUID ownerUuid,
+            boolean isAdmin,
+            ResourceLocation dimension,
+            BlockPos pos
+    ) {
+        return requireDatabase().upsertShop(shopId, ownerUuid, isAdmin, dimension, pos);
+    }
+
+    public CompletableFuture<Optional<ShopRecord>> getShop(UUID shopId) {
+        return requireDatabase().getShop(shopId);
+    }
+
+    public CompletableFuture<Void> deleteShop(UUID shopId) {
+        return requireDatabase().deleteShop(shopId);
     }
 
     public CompletableFuture<Void> reloadConfig() {

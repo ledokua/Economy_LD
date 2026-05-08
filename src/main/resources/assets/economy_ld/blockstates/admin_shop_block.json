@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "economy_ld:block/admin_shop_block" }
+  }
+}

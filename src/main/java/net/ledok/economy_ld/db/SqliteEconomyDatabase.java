@@ -36,6 +36,21 @@ public final class SqliteEconomyDatabase extends AbstractJdbcEconomyDatabase {
     }
 
     @Override
+    protected String upsertShopSql() {
+        return """
+                INSERT INTO shops (id, owner_uuid, is_admin, world, x, y, z, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET
+                    owner_uuid = excluded.owner_uuid,
+                    is_admin = excluded.is_admin,
+                    world = excluded.world,
+                    x = excluded.x,
+                    y = excluded.y,
+                    z = excluded.z
+                """;
+    }
+
+    @Override
     public CompletableFuture<Void> shutdown() {
         return CompletableFuture.completedFuture(null);
     }

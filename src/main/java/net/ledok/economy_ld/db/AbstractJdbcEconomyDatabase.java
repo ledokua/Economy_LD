@@ -1,5 +1,9 @@
 package net.ledok.economy_ld.db;
 
+import net.ledok.economy_ld.shop.ShopRecord;
+import net.minecraft.core.BlockPos;
+import net.minecraft.resources.ResourceLocation;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -21,6 +25,8 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     protected abstract Connection connection() throws SQLException;
 
     protected abstract String transactionsSchema();
+
+    protected abstract String upsertShopSql();
 
     @Override
     public CompletableFuture<Void> initialize() {
@@ -207,6 +213,68 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                 }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to transfer funds", e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> upsertShop(UUID shopId, UUID ownerUuid, boolean isAdmin, ResourceLocation dimension, BlockPos pos) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement(upsertShopSql())) {
+                ps.setString(1, shopId.toString());
+                if (ownerUuid == null) {
+                    ps.setNull(2, java.sql.Types.VARCHAR);
+                } else {
+                    ps.setString(2, ownerUuid.toString());
+                }
+                ps.setBoolean(3, isAdmin);
+                ps.setString(4, dimension.toString());
+                ps.setInt(5, pos.getX());
+                ps.setInt(6, pos.getY());
+                ps.setInt(7, pos.getZ());
+                ps.setLong(8, System.currentTimeMillis() / 1000L);
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to upsert shop " + shopId, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Optional<ShopRecord>> getShop(UUID shopId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT * FROM shops WHERE id = ?")) {
+                ps.setString(1, shopId.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        return Optional.empty();
+                    }
+
+                    String ownerRaw = rs.getString("owner_uuid");
+                    UUID ownerUuid = ownerRaw == null ? null : UUID.fromString(ownerRaw);
+                    boolean isAdmin = rs.getBoolean("is_admin");
+                    ResourceLocation dimension = ResourceLocation.parse(rs.getString("world"));
+                    BlockPos pos = new BlockPos(rs.getInt("x"), rs.getInt("y"), rs.getInt("z"));
+                    long createdAt = rs.getLong("created_at");
+                    return Optional.of(new ShopRecord(shopId, ownerUuid, isAdmin, dimension, pos, createdAt));
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to load shop " + shopId, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> deleteShop(UUID shopId) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM shops WHERE id = ?")) {
+                ps.setString(1, shopId.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to delete shop " + shopId, e);
             }
         }, executor);
     }
