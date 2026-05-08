@@ -1,7 +1,11 @@
 package net.ledok.economy_ld;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.ledok.economy_ld.command.BalanceCommand;
+import net.ledok.economy_ld.command.EcoAdminCommand;
+import net.ledok.economy_ld.command.PayCommand;
 import net.ledok.economy_ld.manager.EconomyManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -13,6 +17,11 @@ public class EconomyLdMod implements ModInitializer {
     @Override
     public void onInitialize() {
         EconomyManager.initialize(LOGGER);
+        CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
+            BalanceCommand.register(dispatcher);
+            PayCommand.register(dispatcher);
+            EcoAdminCommand.register(dispatcher);
+        });
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             try {

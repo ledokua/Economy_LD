@@ -7,6 +7,7 @@ import net.ledok.economy_ld.db.EconomyDatabase;
 import org.slf4j.Logger;
 
 import java.util.UUID;
+import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,6 +62,14 @@ public final class EconomyManager {
         return database;
     }
 
+    public CompletableFuture<Long> getBalance(UUID uuid, String username) {
+        return requireDatabase().getBalance(uuid, username);
+    }
+
+    public CompletableFuture<OptionalLong> getBalanceByUsername(String username) {
+        return requireDatabase().getBalanceByUsername(username);
+    }
+
     public CompletableFuture<Void> give(UUID uuid, String username, long amount) {
         if (amount <= 0) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Amount must be greater than 0"));
@@ -85,6 +94,16 @@ public final class EconomyManager {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Balance cannot be negative"));
         }
         return requireDatabase().setBalance(uuid, username, balance);
+    }
+
+    public CompletableFuture<Boolean> transfer(UUID fromUuid, String fromUsername, UUID toUuid, String toUsername, long amount) {
+        if (amount <= 0) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Amount must be greater than 0"));
+        }
+        if (fromUuid.equals(toUuid)) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Cannot transfer to self"));
+        }
+        return requireDatabase().transfer(fromUuid, fromUsername, toUuid, toUsername, amount);
     }
 
     public CompletableFuture<Void> reloadConfig() {
