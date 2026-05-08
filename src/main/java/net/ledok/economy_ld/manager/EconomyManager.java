@@ -72,7 +72,12 @@ public final class EconomyManager {
         if (amount <= 0) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Amount must be greater than 0"));
         }
-        return requireDatabase().transfer(uuid, username, uuid, username, amount);
+        return requireDatabase().getBalance(uuid, username).thenCompose(balance -> {
+            if (balance < amount) {
+                return CompletableFuture.completedFuture(false);
+            }
+            return requireDatabase().addBalance(uuid, username, -amount).thenApply(v -> true);
+        });
     }
 
     public CompletableFuture<Void> set(UUID uuid, String username, long balance) {
