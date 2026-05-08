@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -107,6 +108,24 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                 return OptionalLong.empty();
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to get balance for username=" + username, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Optional<UUID>> getUuidByUsername(String username) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT uuid FROM wallets WHERE username = ?")) {
+                ps.setString(1, username);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return Optional.of(UUID.fromString(rs.getString("uuid")));
+                    }
+                }
+                return Optional.empty();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to get uuid for username=" + username, e);
             }
         }, executor);
     }

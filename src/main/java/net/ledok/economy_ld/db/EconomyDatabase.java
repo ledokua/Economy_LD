@@ -1,6 +1,7 @@
 package net.ledok.economy_ld.db;
 
 import java.util.UUID;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 
@@ -12,6 +13,8 @@ public interface EconomyDatabase {
     CompletableFuture<Long> getBalance(UUID uuid, String username);
 
     CompletableFuture<OptionalLong> getBalanceByUsername(String username);
+
+    CompletableFuture<Optional<UUID>> getUuidByUsername(String username);
 
     CompletableFuture<Void> setBalance(UUID uuid, String username, long balance);
 

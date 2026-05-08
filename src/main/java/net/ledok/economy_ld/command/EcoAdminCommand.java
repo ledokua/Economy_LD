@@ -5,12 +5,13 @@ import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.util.CurrencyFormatter;
-import net.ledok.economy_ld.util.OfflinePlayerResolver;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 
 public final class EcoAdminCommand {
     private EcoAdminCommand() {
@@ -54,11 +55,14 @@ public final class EcoAdminCommand {
     }
 
     private static int give(CommandSourceStack source, String username, long amount) {
-        UUID uuid = OfflinePlayerResolver.resolveUuid(source.getServer(), username);
-        EconomyManager.getInstance().give(uuid, username, amount)
+        resolveKnownUuid(username).thenCompose(uuid -> EconomyManager.getInstance().give(uuid, username, amount))
                 .whenComplete((ignored, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Failed to give funds: " + error.getCause().getMessage()));
+                        if (isUnknownPlayer(error)) {
+                            source.sendFailure(Component.literal("Player '" + username + "' has never joined this server."));
+                        } else {
+                            source.sendFailure(Component.literal("Failed to give funds: " + errorMessage(error)));
+                        }
                         return;
                     }
                     source.sendSuccess(() -> Component.literal("Gave " + CurrencyFormatter.format(amount) + " to " + username + "."), true);
@@ -67,11 +71,14 @@ public final class EcoAdminCommand {
     }
 
     private static int take(CommandSourceStack source, String username, long amount) {
-        UUID uuid = OfflinePlayerResolver.resolveUuid(source.getServer(), username);
-        EconomyManager.getInstance().take(uuid, username, amount)
+        resolveKnownUuid(username).thenCompose(uuid -> EconomyManager.getInstance().take(uuid, username, amount))
                 .whenComplete((success, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Failed to take funds: " + error.getCause().getMessage()));
+                        if (isUnknownPlayer(error)) {
+                            source.sendFailure(Component.literal("Player '" + username + "' has never joined this server."));
+                        } else {
+                            source.sendFailure(Component.literal("Failed to take funds: " + errorMessage(error)));
+                        }
                         return;
                     }
                     if (!success) {
@@ -84,11 +91,14 @@ public final class EcoAdminCommand {
     }
 
     private static int set(CommandSourceStack source, String username, long amount) {
-        UUID uuid = OfflinePlayerResolver.resolveUuid(source.getServer(), username);
-        EconomyManager.getInstance().set(uuid, username, amount)
+        resolveKnownUuid(username).thenCompose(uuid -> EconomyManager.getInstance().set(uuid, username, amount))
                 .whenComplete((ignored, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Failed to set balance: " + error.getCause().getMessage()));
+                        if (isUnknownPlayer(error)) {
+                            source.sendFailure(Component.literal("Player '" + username + "' has never joined this server."));
+                        } else {
+                            source.sendFailure(Component.literal("Failed to set balance: " + errorMessage(error)));
+                        }
                         return;
                     }
                     source.sendSuccess(() -> Component.literal("Set " + username + "'s balance to " + CurrencyFormatter.format(amount) + "."), true);
@@ -124,5 +134,26 @@ public final class EcoAdminCommand {
                     source.sendSuccess(() -> Component.literal("Economy config reloaded."), true);
                 }));
         return 1;
+    }
+
+    private static CompletableFuture<UUID> resolveKnownUuid(String username) {
+        return EconomyManager.getInstance().getUuidByUsername(username).thenCompose(uuidOpt -> {
+            if (uuidOpt.isEmpty()) {
+                return CompletableFuture.failedFuture(new IllegalArgumentException("UNKNOWN_PLAYER:" + username));
+            }
+            return CompletableFuture.completedFuture(uuidOpt.get());
+        });
+    }
+
+    private static boolean isUnknownPlayer(Throwable error) {
+        String message = errorMessage(error);
+        return message != null && message.startsWith("UNKNOWN_PLAYER:");
+    }
+
+    private static String errorMessage(Throwable error) {
+        if (error instanceof CompletionException && error.getCause() != null) {
+            return error.getCause().getMessage();
+        }
+        return error.getMessage();
     }
 }

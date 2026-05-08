@@ -10,6 +10,8 @@ import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.concurrent.CompletionException;
+
 public final class PayCommand {
     private PayCommand() {
     }
@@ -38,7 +40,7 @@ public final class PayCommand {
                 .transfer(sender.getUUID(), sender.getName().getString(), target.getUUID(), target.getName().getString(), amount)
                 .whenComplete((success, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Transfer failed: " + error.getCause().getMessage()));
+                        source.sendFailure(Component.literal("Transfer failed: " + errorMessage(error)));
                         return;
                     }
                     if (!success) {
@@ -49,5 +51,12 @@ public final class PayCommand {
                     target.sendSystemMessage(Component.literal(sender.getName().getString() + " paid you " + CurrencyFormatter.format(amount) + "."));
                 }));
         return 1;
+    }
+
+    private static String errorMessage(Throwable error) {
+        if (error instanceof CompletionException && error.getCause() != null) {
+            return error.getCause().getMessage();
+        }
+        return error.getMessage();
     }
 }

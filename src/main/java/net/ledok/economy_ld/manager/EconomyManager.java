@@ -7,6 +7,7 @@ import net.ledok.economy_ld.db.EconomyDatabase;
 import org.slf4j.Logger;
 
 import java.util.UUID;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -68,6 +69,10 @@ public final class EconomyManager {
 
     public CompletableFuture<OptionalLong> getBalanceByUsername(String username) {
         return requireDatabase().getBalanceByUsername(username);
+    }
+
+    public CompletableFuture<Optional<UUID>> getUuidByUsername(String username) {
+        return requireDatabase().getUuidByUsername(username);
     }
 
     public CompletableFuture<Void> give(UUID uuid, String username, long amount) {
