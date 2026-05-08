@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "economy_ld",
+  "version": "${version}",
+  "name": "Economy_LD",
+  "description": "Economy system for servers",
+  "authors": [],
+  "contact": {},
+  "license": "MIT",
+  "icon": "assets/economy_ld/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "client": [
+      "net.ledok.economy_ld.client.EconomyLdModClient"
+    ],
+    "main": [
+      "net.ledok.economy_ld.EconomyLdMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=${loader_version}",
+    "fabric-api": "*",
+    "minecraft": "${minecraft_version}"
+  }
+}
