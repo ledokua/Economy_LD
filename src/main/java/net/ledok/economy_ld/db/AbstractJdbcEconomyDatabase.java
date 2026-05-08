@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.OptionalLong;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -93,17 +94,17 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     }
 
     @Override
-    public CompletableFuture<Long> getBalanceByUsername(String username) {
+    public CompletableFuture<OptionalLong> getBalanceByUsername(String username) {
         return CompletableFuture.supplyAsync(() -> {
             try (Connection conn = connection();
                  PreparedStatement ps = conn.prepareStatement("SELECT balance FROM wallets WHERE username = ?")) {
                 ps.setString(1, username);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
-                        return rs.getLong("balance");
+                        return OptionalLong.of(rs.getLong("balance"));
                     }
                 }
-                return 0L;
+                return OptionalLong.empty();
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to get balance for username=" + username, e);
             }

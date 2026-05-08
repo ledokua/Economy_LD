@@ -6,6 +6,7 @@ import net.ledok.economy_ld.db.DatabaseFactory;
 import net.ledok.economy_ld.db.EconomyDatabase;
 import org.slf4j.Logger;
 
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -58,6 +59,27 @@ public final class EconomyManager {
             throw new IllegalStateException("Economy database is not available");
         }
         return database;
+    }
+
+    public CompletableFuture<Void> give(UUID uuid, String username, long amount) {
+        if (amount <= 0) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Amount must be greater than 0"));
+        }
+        return requireDatabase().addBalance(uuid, username, amount);
+    }
+
+    public CompletableFuture<Boolean> take(UUID uuid, String username, long amount) {
+        if (amount <= 0) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Amount must be greater than 0"));
+        }
+        return requireDatabase().transfer(uuid, username, uuid, username, amount);
+    }
+
+    public CompletableFuture<Void> set(UUID uuid, String username, long balance) {
+        if (balance < 0) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Balance cannot be negative"));
+        }
+        return requireDatabase().setBalance(uuid, username, balance);
     }
 
     public CompletableFuture<Void> reloadConfig() {
