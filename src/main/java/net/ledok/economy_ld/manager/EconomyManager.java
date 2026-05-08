@@ -1,0 +1,81 @@
+package net.ledok.economy_ld.manager;
+
+import net.ledok.economy_ld.config.ConfigLoader;
+import net.ledok.economy_ld.config.EconomyConfig;
+import net.ledok.economy_ld.db.DatabaseFactory;
+import net.ledok.economy_ld.db.EconomyDatabase;
+import org.slf4j.Logger;
+
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+
+public final class EconomyManager {
+    private static EconomyManager instance;
+
+    private final Logger logger;
+    private final ExecutorService dbExecutor;
+    private EconomyConfig config;
+    private EconomyDatabase database;
+
+    private EconomyManager(Logger logger) {
+        this.logger = logger;
+        this.dbExecutor = Executors.newSingleThreadExecutor(r -> {
+            Thread thread = new Thread(r, "economy-ld-db");
+            thread.setDaemon(true);
+            return thread;
+        });
+    }
+
+    public static synchronized EconomyManager initialize(Logger logger) {
+        if (instance == null) {
+            instance = new EconomyManager(logger);
+            instance.bootstrap();
+        }
+        return instance;
+    }
+
+    public static EconomyManager getInstance() {
+        if (instance == null) {
+            throw new IllegalStateException("EconomyManager is not initialized");
+        }
+        return instance;
+    }
+
+    private void bootstrap() {
+        this.config = ConfigLoader.load(logger);
+        this.database = DatabaseFactory.create(config, dbExecutor);
+        database.initialize().join();
+        logger.info("Economy database initialized with storage type '{}'", config.storageType);
+    }
+
+    public EconomyConfig getConfig() {
+        return config;
+    }
+
+    public EconomyDatabase requireDatabase() {
+        if (database == null) {
+            throw new IllegalStateException("Economy database is not available");
+        }
+        return database;
+    }
+
+    public CompletableFuture<Void> reloadConfig() {
+        return CompletableFuture.runAsync(() -> {
+            this.config = ConfigLoader.load(logger);
+            logger.info("Economy config reloaded");
+        });
+    }
+
+    public synchronized void shutdown() {
+        if (database != null) {
+            try {
+                database.shutdown().join();
+            } catch (Exception e) {
+                logger.error("Failed to shutdown economy database cleanly", e);
+            }
+            database = null;
+        }
+        dbExecutor.shutdown();
+    }
+}
