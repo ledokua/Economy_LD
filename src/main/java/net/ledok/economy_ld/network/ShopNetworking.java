@@ -1,0 +1,275 @@
+package net.ledok.economy_ld.network;
+
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.ledok.economy_ld.client.screen.ShopClientState;
+import net.ledok.economy_ld.manager.EconomyManager;
+import net.ledok.economy_ld.network.packet.c2s.AddListingC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.BuyItemC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.RemoveListingC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.RestockListingC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.SellItemC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.UpdateListingC2SPacket;
+import net.ledok.economy_ld.network.packet.s2c.ShopListingsSyncS2CPacket;
+import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
+
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+public final class ShopNetworking {
+    private ShopNetworking() {
+    }
+
+    public static void registerPayloadTypes() {
+        PayloadTypeRegistry.playS2C().register(ShopListingsSyncS2CPacket.TYPE, ShopListingsSyncS2CPacket.CODEC);
+        PayloadTypeRegistry.playC2S().register(BuyItemC2SPacket.TYPE, BuyItemC2SPacket.CODEC);
+        PayloadTypeRegistry.playC2S().register(SellItemC2SPacket.TYPE, SellItemC2SPacket.CODEC);
+        PayloadTypeRegistry.playC2S().register(AddListingC2SPacket.TYPE, AddListingC2SPacket.CODEC);
+        PayloadTypeRegistry.playC2S().register(UpdateListingC2SPacket.TYPE, UpdateListingC2SPacket.CODEC);
+        PayloadTypeRegistry.playC2S().register(RemoveListingC2SPacket.TYPE, RemoveListingC2SPacket.CODEC);
+        PayloadTypeRegistry.playC2S().register(RestockListingC2SPacket.TYPE, RestockListingC2SPacket.CODEC);
+    }
+
+    public static void registerServerReceivers() {
+        ServerPlayNetworking.registerGlobalReceiver(BuyItemC2SPacket.TYPE, (payload, context) -> {
+            ShopBrowseScreenHandler menu = activeMenu(context.player());
+            if (menu == null) {
+                return;
+            }
+            EconomyManager.getInstance().getListings(menu.getShopId()).whenComplete((listings, error) -> {
+                if (error != null) {
+                    return;
+                }
+                listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing -> {
+                    EconomyManager.getInstance().buyItem(listing.id(), context.player().getUUID(), context.player().getName().getString(), Math.max(1, payload.quantity()))
+                            .whenComplete((success, err2) -> context.server().execute(() -> {
+                                if (err2 != null || !Boolean.TRUE.equals(success)) {
+                                    return;
+                                }
+                                ItemStack toGive = listing.itemStack().copyWithCount(Math.max(1, payload.quantity()));
+                                boolean added = context.player().getInventory().add(toGive);
+                                if (!added && !toGive.isEmpty()) {
+                                    context.player().drop(toGive, false);
+                                }
+                                syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+                            }));
+                });
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(SellItemC2SPacket.TYPE, (payload, context) -> {
+            ShopBrowseScreenHandler menu = activeMenu(context.player());
+            if (menu == null) {
+                return;
+            }
+            EconomyManager.getInstance().getListings(menu.getShopId()).whenComplete((listings, error) -> {
+                if (error != null) {
+                    return;
+                }
+                listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing -> {
+                    int quantity = Math.max(1, payload.quantity());
+                    int removed = removeMatchingItems(context.player(), listing.itemStack(), quantity);
+                    if (removed < quantity) {
+                        if (removed > 0) {
+                            ItemStack rollback = listing.itemStack().copyWithCount(removed);
+                            context.player().getInventory().add(rollback);
+                        }
+                        return;
+                    }
+
+                    EconomyManager.getInstance().sellItem(listing.id(), context.player().getUUID(), context.player().getName().getString(), quantity)
+                            .whenComplete((success, err2) -> context.server().execute(() -> {
+                                if (err2 != null || !Boolean.TRUE.equals(success)) {
+                                    ItemStack rollback = listing.itemStack().copyWithCount(quantity);
+                                    context.player().getInventory().add(rollback);
+                                    return;
+                                }
+                                syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+                            }));
+                });
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(AddListingC2SPacket.TYPE, (payload, context) -> {
+            ShopBrowseScreenHandler menu = activeMenu(context.player());
+            if (menu == null || !menu.isOwnerOrOperator()) {
+                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot add listing: not owner/admin or wrong menu.")));
+                return;
+            }
+            ItemStack item = ItemStack.parseOptional(context.player().registryAccess(), payload.itemNbt());
+            if (item.isEmpty()) {
+                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot add listing: item payload was empty.")));
+                return;
+            }
+            Long buy = normalizePrice(payload.priceBuy());
+            Long sell = normalizePrice(payload.priceSell());
+            if (buy == null && sell == null) {
+                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot add listing: set at least one price above 0.")));
+                return;
+            }
+            int toConsume = Math.max(1, item.getCount());
+            int removed = removeMatchingItems(context.player(), item, toConsume);
+            if (removed < toConsume) {
+                if (removed > 0) {
+                    context.player().getInventory().add(item.copyWithCount(removed));
+                }
+                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot add listing: matching item not found in inventory.")));
+                return;
+            }
+            EconomyManager.getInstance().addListing(menu.getShopId(), item, buy, sell, payload.perOp(), payload.buyCap())
+                    .whenComplete((ignored, error) -> context.server().execute(() -> {
+                        if (error != null) {
+                            context.player().getInventory().add(item.copyWithCount(toConsume));
+                            context.player().sendSystemMessage(Component.literal("Cannot add listing: " + error.getMessage()));
+                            return;
+                        }
+                        context.player().sendSystemMessage(Component.literal("Listing added."));
+                        syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+                    }));
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(UpdateListingC2SPacket.TYPE, (payload, context) -> {
+            ShopBrowseScreenHandler menu = activeMenu(context.player());
+            if (menu == null || !menu.isOwnerOrOperator()) {
+                return;
+            }
+            Long buy = normalizePrice(payload.priceBuy());
+            Long sell = normalizePrice(payload.priceSell());
+            if (buy == null && sell == null) {
+                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot update listing: set at least one price above 0.")));
+                return;
+            }
+            EconomyManager.getInstance().getListings(menu.getShopId()).whenComplete((listings, error) -> {
+                if (error != null) {
+                    return;
+                }
+                listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing ->
+                        EconomyManager.getInstance().updateListing(listing.id(), buy, sell, payload.perOp(), payload.buyCap())
+                                .whenComplete((ignored, err2) -> context.server().execute(() ->
+                                        syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator())))
+                );
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(RemoveListingC2SPacket.TYPE, (payload, context) -> {
+            ShopBrowseScreenHandler menu = activeMenu(context.player());
+            if (menu == null || !menu.isOwnerOrOperator()) {
+                return;
+            }
+            EconomyManager.getInstance().getListings(menu.getShopId()).whenComplete((listings, error) -> {
+                if (error != null) {
+                    return;
+                }
+                listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing ->
+                        EconomyManager.getInstance().removeListing(listing.id())
+                                .whenComplete((ignored, err2) -> context.server().execute(() ->
+                                        syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator())))
+                );
+            });
+        });
+
+        ServerPlayNetworking.registerGlobalReceiver(RestockListingC2SPacket.TYPE, (payload, context) -> {
+            ShopBrowseScreenHandler menu = activeMenu(context.player());
+            if (menu == null || !menu.isOwnerOrOperator()) {
+                return;
+            }
+            EconomyManager.getInstance().getListings(menu.getShopId()).whenComplete((listings, error) -> {
+                if (error != null) {
+                    return;
+                }
+                listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing ->
+                {
+                    int quantity = Math.max(1, payload.quantity());
+                    int removed = removeMatchingItems(context.player(), listing.itemStack(), quantity);
+                    if (removed < quantity) {
+                        if (removed > 0) {
+                            context.player().getInventory().add(listing.itemStack().copyWithCount(removed));
+                        }
+                        return;
+                    }
+                    EconomyManager.getInstance().restockListing(listing.id(), quantity)
+                            .whenComplete((success, err2) -> context.server().execute(() -> {
+                                if (err2 != null || !Boolean.TRUE.equals(success)) {
+                                    context.player().getInventory().add(listing.itemStack().copyWithCount(quantity));
+                                    return;
+                                }
+                                syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+                            }));
+                }
+                );
+            });
+        });
+    }
+
+    public static void registerClientReceivers() {
+        ClientPlayNetworking.registerGlobalReceiver(ShopListingsSyncS2CPacket.TYPE, (payload, context) ->
+                ShopClientState.setListings(payload.shopId(), payload.adminShop(), payload.ownerOrOperator(), payload.ownerLabel(), payload.openerBalance(), payload.listings()));
+    }
+
+    public static void sendListingsSync(ServerPlayer player, ShopListingsSyncS2CPacket payload) {
+        ServerPlayNetworking.send(player, payload);
+    }
+
+    public static void syncShop(ServerPlayer player, UUID shopId, boolean adminShop, boolean ownerOrOperator) {
+        EconomyManager manager = EconomyManager.getInstance();
+        CompletableFuture<String> ownerLabelFuture;
+        if (adminShop) {
+            ownerLabelFuture = CompletableFuture.completedFuture("Server");
+        } else {
+            ownerLabelFuture = manager.getShop(shopId).thenCompose(shop -> {
+                if (shop.isEmpty() || shop.get().ownerUuid() == null) {
+                    return CompletableFuture.completedFuture("Unknown");
+                }
+                return manager.getUsernameByUuid(shop.get().ownerUuid()).thenApply(name -> name.orElse("Unknown"));
+            });
+        }
+
+        CompletableFuture<List<net.ledok.economy_ld.shop.ShopListing>> listingsFuture = manager.getListings(shopId);
+        CompletableFuture<Long> balanceFuture = manager.getBalance(player.getUUID(), player.getName().getString());
+        ownerLabelFuture.thenCombine(listingsFuture, OwnerAndListings::new)
+                .thenCombine(balanceFuture, (pair, balance) ->
+                        new ShopListingsSyncS2CPacket(shopId, adminShop, ownerOrOperator, pair.ownerLabel(), balance, pair.listings()))
+                .whenComplete((payload, error) -> player.server.execute(() -> {
+                    if (error != null) {
+                        return;
+                    }
+                    sendListingsSync(player, payload);
+                }));
+    }
+
+    private record OwnerAndListings(String ownerLabel, List<net.ledok.economy_ld.shop.ShopListing> listings) {
+    }
+
+    private static Long normalizePrice(Long raw) {
+        if (raw == null || raw <= 0) {
+            return null;
+        }
+        return raw;
+    }
+
+    private static ShopBrowseScreenHandler activeMenu(ServerPlayer player) {
+        return player.containerMenu instanceof ShopBrowseScreenHandler handler ? handler : null;
+    }
+
+    private static int removeMatchingItems(ServerPlayer player, ItemStack template, int wanted) {
+        int removed = 0;
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, template)) {
+                continue;
+            }
+            int take = Math.min(wanted - removed, stack.getCount());
+            stack.shrink(take);
+            removed += take;
+            if (removed >= wanted) {
+                break;
+            }
+        }
+        return removed;
+    }
+}
