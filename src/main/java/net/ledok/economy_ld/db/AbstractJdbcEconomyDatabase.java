@@ -1,14 +1,20 @@
 package net.ledok.economy_ld.db;
 
 import net.ledok.economy_ld.shop.ShopRecord;
+import net.ledok.economy_ld.shop.ShopListing;
+import net.ledok.economy_ld.util.ItemStackSerializationUtil;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.UUID;
@@ -57,10 +63,14 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                             item_nbt    TEXT NOT NULL,
                             price_buy   BIGINT,
                             price_sell  BIGINT,
+                            per_op      INT NOT NULL DEFAULT 1,
+                            buy_cap     BIGINT,
                             stock       BIGINT,
                             FOREIGN KEY (shop_id) REFERENCES shops(id) ON DELETE CASCADE
                         )
                         """);
+                ensureColumnExists(conn, "shop_listings", "per_op", "INT NOT NULL DEFAULT 1");
+                ensureColumnExists(conn, "shop_listings", "buy_cap", "BIGINT");
                 statement.executeUpdate("""
                         CREATE TABLE IF NOT EXISTS auctions (
                             id              VARCHAR(36) PRIMARY KEY,
@@ -104,7 +114,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     public CompletableFuture<OptionalLong> getBalanceByUsername(String username) {
         return CompletableFuture.supplyAsync(() -> {
             try (Connection conn = connection();
-                 PreparedStatement ps = conn.prepareStatement("SELECT balance FROM wallets WHERE username = ?")) {
+                 PreparedStatement ps = conn.prepareStatement("SELECT balance FROM wallets WHERE LOWER(username) = LOWER(?)")) {
                 ps.setString(1, username);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
@@ -122,7 +132,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     public CompletableFuture<Optional<UUID>> getUuidByUsername(String username) {
         return CompletableFuture.supplyAsync(() -> {
             try (Connection conn = connection();
-                 PreparedStatement ps = conn.prepareStatement("SELECT uuid FROM wallets WHERE username = ?")) {
+                 PreparedStatement ps = conn.prepareStatement("SELECT uuid FROM wallets WHERE LOWER(username) = LOWER(?)")) {
                 ps.setString(1, username);
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next()) {
@@ -132,6 +142,24 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                 return Optional.empty();
             } catch (SQLException e) {
                 throw new RuntimeException("Failed to get uuid for username=" + username, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Optional<String>> getUsernameByUuid(UUID uuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT username FROM wallets WHERE uuid = ?")) {
+                ps.setString(1, uuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return Optional.ofNullable(rs.getString("username"));
+                    }
+                }
+                return Optional.empty();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to get username for uuid=" + uuid, e);
             }
         }, executor);
     }
@@ -279,6 +307,261 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
         }, executor);
     }
 
+    @Override
+    public CompletableFuture<Void> addListing(UUID shopId, ItemStack item, Long priceBuy, Long priceSell, int perOp, Long buyCap) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("""
+                         INSERT INTO shop_listings (id, shop_id, item_nbt, price_buy, price_sell, per_op, buy_cap, stock)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                         """)) {
+                ps.setString(1, UUID.randomUUID().toString());
+                ps.setString(2, shopId.toString());
+                ps.setString(3, ItemStackSerializationUtil.toBase64(item));
+                if (priceBuy == null) {
+                    ps.setNull(4, java.sql.Types.BIGINT);
+                } else {
+                    ps.setLong(4, priceBuy);
+                }
+                if (priceSell == null) {
+                    ps.setNull(5, java.sql.Types.BIGINT);
+                } else {
+                    ps.setLong(5, priceSell);
+                }
+                ps.setInt(6, Math.max(1, perOp));
+                if (buyCap == null) {
+                    ps.setNull(7, java.sql.Types.BIGINT);
+                } else {
+                    ps.setLong(7, buyCap);
+                }
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to add listing to shop " + shopId, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<List<ShopListing>> getListings(UUID shopId) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT * FROM shop_listings WHERE shop_id = ?")) {
+                ps.setString(1, shopId.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    List<ShopListing> listings = new ArrayList<>();
+                    while (rs.next()) {
+                        UUID id = UUID.fromString(rs.getString("id"));
+                        ItemStack stack = ItemStackSerializationUtil.fromBase64(rs.getString("item_nbt"));
+                        Long priceBuy = rs.getObject("price_buy") == null ? null : rs.getLong("price_buy");
+                        Long priceSell = rs.getObject("price_sell") == null ? null : rs.getLong("price_sell");
+                        int perOp = rs.getInt("per_op");
+                        Long buyCap = rs.getObject("buy_cap") == null ? null : rs.getLong("buy_cap");
+                        Long stock = rs.getObject("stock") == null ? null : rs.getLong("stock");
+                        listings.add(new ShopListing(id, shopId, stack, priceBuy, priceSell, perOp, buyCap, stock));
+                    }
+                    return listings;
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to load listings for shop " + shopId, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> removeListing(UUID listingId) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("DELETE FROM shop_listings WHERE id = ?")) {
+                ps.setString(1, listingId.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to remove listing " + listingId, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> updateListing(UUID listingId, Long priceBuy, Long priceSell, int perOp, Long buyCap) {
+        return CompletableFuture.runAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("""
+                         UPDATE shop_listings
+                         SET price_buy = ?, price_sell = ?, per_op = ?, buy_cap = ?
+                         WHERE id = ?
+                         """)) {
+                if (priceBuy == null) {
+                    ps.setNull(1, java.sql.Types.BIGINT);
+                } else {
+                    ps.setLong(1, priceBuy);
+                }
+                if (priceSell == null) {
+                    ps.setNull(2, java.sql.Types.BIGINT);
+                } else {
+                    ps.setLong(2, priceSell);
+                }
+                ps.setInt(3, Math.max(1, perOp));
+                if (buyCap == null) {
+                    ps.setNull(4, java.sql.Types.BIGINT);
+                } else {
+                    ps.setLong(4, buyCap);
+                }
+                ps.setString(5, listingId.toString());
+                ps.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to update listing " + listingId, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> restockListing(UUID listingId, int quantity) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("""
+                         UPDATE shop_listings
+                         SET stock = COALESCE(stock, 0) + ?
+                         WHERE id = ?
+                         """)) {
+                ps.setInt(1, Math.max(1, quantity));
+                ps.setString(2, listingId.toString());
+                return ps.executeUpdate() > 0;
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to restock listing " + listingId, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> buyItem(UUID listingId, UUID buyerUuid, String buyerUsername, int quantity) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection()) {
+                conn.setAutoCommit(false);
+                try {
+                    upsertWallet(conn, buyerUuid, buyerUsername);
+
+                    long priceBuy;
+                    Long stock;
+                    try (PreparedStatement q = conn.prepareStatement("SELECT price_buy, stock FROM shop_listings WHERE id = ?")) {
+                        q.setString(1, listingId.toString());
+                        try (ResultSet rs = q.executeQuery()) {
+                            if (!rs.next()) {
+                                conn.rollback();
+                                return false;
+                            }
+                            if (rs.getObject("price_buy") == null) {
+                                conn.rollback();
+                                return false;
+                            }
+                            priceBuy = rs.getLong("price_buy");
+                            stock = rs.getObject("stock") == null ? null : rs.getLong("stock");
+                        }
+                    }
+
+                    long total = priceBuy * Math.max(1, quantity);
+                    long balance;
+                    try (PreparedStatement q = conn.prepareStatement("SELECT balance FROM wallets WHERE uuid = ?")) {
+                        q.setString(1, buyerUuid.toString());
+                        try (ResultSet rs = q.executeQuery()) {
+                            balance = rs.next() ? rs.getLong("balance") : 0L;
+                        }
+                    }
+                    if (balance < total) {
+                        conn.rollback();
+                        return false;
+                    }
+                    if (stock != null && stock < quantity) {
+                        conn.rollback();
+                        return false;
+                    }
+
+                    try (PreparedStatement debit = conn.prepareStatement("UPDATE wallets SET balance = balance - ? WHERE uuid = ?")) {
+                        debit.setLong(1, total);
+                        debit.setString(2, buyerUuid.toString());
+                        debit.executeUpdate();
+                    }
+                    if (stock != null) {
+                        try (PreparedStatement dec = conn.prepareStatement("UPDATE shop_listings SET stock = stock - ? WHERE id = ?")) {
+                            dec.setInt(1, quantity);
+                            dec.setString(2, listingId.toString());
+                            dec.executeUpdate();
+                        }
+                    }
+
+                    conn.commit();
+                    return true;
+                } catch (Exception e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(true);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to buy from listing " + listingId, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Boolean> sellItem(UUID listingId, UUID sellerUuid, String sellerUsername, int quantity) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection()) {
+                conn.setAutoCommit(false);
+                try {
+                    upsertWallet(conn, sellerUuid, sellerUsername);
+
+                    long priceSell;
+                    Long stock;
+                    Long buyCap;
+                    try (PreparedStatement q = conn.prepareStatement("SELECT price_sell, stock, buy_cap FROM shop_listings WHERE id = ?")) {
+                        q.setString(1, listingId.toString());
+                        try (ResultSet rs = q.executeQuery()) {
+                            if (!rs.next()) {
+                                conn.rollback();
+                                return false;
+                            }
+                            if (rs.getObject("price_sell") == null) {
+                                conn.rollback();
+                                return false;
+                            }
+                            priceSell = rs.getLong("price_sell");
+                            stock = rs.getObject("stock") == null ? null : rs.getLong("stock");
+                            buyCap = rs.getObject("buy_cap") == null ? null : rs.getLong("buy_cap");
+                        }
+                    }
+
+                    if (stock != null && buyCap != null && stock + quantity > buyCap) {
+                        conn.rollback();
+                        return false;
+                    }
+
+                    long total = priceSell * Math.max(1, quantity);
+                    try (PreparedStatement credit = conn.prepareStatement("UPDATE wallets SET balance = balance + ? WHERE uuid = ?")) {
+                        credit.setLong(1, total);
+                        credit.setString(2, sellerUuid.toString());
+                        credit.executeUpdate();
+                    }
+                    if (stock != null) {
+                        try (PreparedStatement inc = conn.prepareStatement("UPDATE shop_listings SET stock = stock + ? WHERE id = ?")) {
+                            inc.setInt(1, quantity);
+                            inc.setString(2, listingId.toString());
+                            inc.executeUpdate();
+                        }
+                    }
+
+                    conn.commit();
+                    return true;
+                } catch (Exception e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(true);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to sell to listing " + listingId, e);
+            }
+        }, executor);
+    }
+
     protected void upsertWallet(Connection conn, UUID uuid, String username) throws SQLException {
         try (PreparedStatement insert = conn.prepareStatement(
                 "INSERT INTO wallets (uuid, username, balance) VALUES (?, ?, 0) ON CONFLICT(uuid) DO NOTHING")) {
@@ -291,5 +574,37 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
             updateName.setString(2, uuid.toString());
             updateName.executeUpdate();
         }
+    }
+
+    private void ensureColumnExists(Connection conn, String tableName, String columnName, String definition) throws SQLException {
+        if (columnExists(conn, tableName, columnName)) {
+            return;
+        }
+        try (Statement statement = conn.createStatement()) {
+            statement.executeUpdate("ALTER TABLE " + tableName + " ADD COLUMN " + columnName + " " + definition);
+        }
+    }
+
+    private boolean columnExists(Connection conn, String tableName, String columnName) throws SQLException {
+        DatabaseMetaData metaData = conn.getMetaData();
+        if (columnExists(metaData, tableName, columnName)) {
+            return true;
+        }
+        if (columnExists(metaData, tableName.toLowerCase(), columnName)) {
+            return true;
+        }
+        return columnExists(metaData, tableName.toUpperCase(), columnName);
+    }
+
+    private boolean columnExists(DatabaseMetaData metaData, String tableName, String columnName) throws SQLException {
+        try (ResultSet rs = metaData.getColumns(null, null, tableName, null)) {
+            while (rs.next()) {
+                String col = rs.getString("COLUMN_NAME");
+                if (col != null && col.equalsIgnoreCase(columnName)) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 }

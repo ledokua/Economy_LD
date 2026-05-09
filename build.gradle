@@ -10,9 +10,39 @@ base {
     archivesName = project.archives_base_name
 }
 
+loom {
+    runs {
+        clientDev1 {
+            client()
+            configName = "Minecraft Client Dev1"
+            ideConfigGenerated = true
+            runDir = "run/dev1"
+            programArg "--username"
+            programArg "Dev1"
+        }
+        clientDev2 {
+            client()
+            configName = "Minecraft Client Dev2"
+            ideConfigGenerated = true
+            runDir = "run/dev2"
+            programArg "--username"
+            programArg "Dev2"
+        }
+        clientRandom {
+            client()
+            configName = "Minecraft Client Random"
+            ideConfigGenerated = true
+            runDir = "run/random"
+            programArg "--username"
+            programArg "Dev" + java.util.UUID.randomUUID().toString().replace("-", "").substring(0, 8)
+        }
+    }
+}
+
 
 repositories {
     mavenCentral()
+    maven { url 'https://maven.wispforest.io/releases/' }
 }
 
 dependencies {
@@ -22,6 +52,7 @@ dependencies {
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
 
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+    modImplementation "io.wispforest:owo-lib:${project.owo_version}"
 
     implementation "com.zaxxer:HikariCP:6.2.1"
     include "com.zaxxer:HikariCP:6.2.1"

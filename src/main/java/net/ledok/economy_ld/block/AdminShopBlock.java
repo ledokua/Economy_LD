@@ -11,7 +11,10 @@ import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.BaseEntityBlock;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.phys.BlockHitResult;
+import net.ledok.economy_ld.network.ShopNetworking;
+import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
 
 public class AdminShopBlock extends ShopBlock {
     public static final MapCodec<AdminShopBlock> CODEC = simpleCodec(AdminShopBlock::new);
@@ -39,9 +42,13 @@ public class AdminShopBlock extends ShopBlock {
         }
 
         if (level.getBlockEntity(pos) instanceof ShopBlockEntity shopBe) {
-            initializeShopRecord(level, pos, shopBe, serverPlayer, true);
+            ensureShopRecord(level, pos, shopBe, serverPlayer, true, false);
+            serverPlayer.openMenu(new SimpleMenuProvider(
+                    (syncId, inventory, p) -> new ShopBrowseScreenHandler(syncId, inventory, shopBe.getShopId(), true, true),
+                    Component.literal("Admin Shop")
+            ));
+            ShopNetworking.syncShop(serverPlayer, shopBe.getShopId(), true, true);
         }
-        serverPlayer.sendSystemMessage(Component.literal("Admin shop opened. GUI is coming in the next step of Phase 3."));
         return InteractionResult.CONSUME;
     }
 
@@ -56,7 +63,7 @@ public class AdminShopBlock extends ShopBlock {
         }
         super.setPlacedBy(level, pos, state, placer, stack);
         if (level.getBlockEntity(pos) instanceof ShopBlockEntity shopBe) {
-            initializeShopRecord(level, pos, shopBe, serverPlayer, true);
+            ensureShopRecord(level, pos, shopBe, serverPlayer, true, true);
         }
     }
 }

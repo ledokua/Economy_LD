@@ -2,6 +2,8 @@ package net.ledok.economy_ld.block;
 
 import com.mojang.serialization.MapCodec;
 import net.ledok.economy_ld.manager.EconomyManager;
+import net.ledok.economy_ld.network.ShopNetworking;
+import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -16,6 +18,7 @@ import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.phys.BlockHitResult;
 
 import java.util.UUID;
@@ -61,8 +64,13 @@ public class ShopBlock extends BaseEntityBlock {
             return InteractionResult.CONSUME;
         }
 
-        initializeShopRecord(level, pos, shopBe, serverPlayer, false);
-        serverPlayer.sendSystemMessage(Component.literal("Shop opened. GUI is coming in the next step of Phase 3."));
+        ensureShopRecord(level, pos, shopBe, serverPlayer, false, false);
+        boolean ownerOrOperator = serverPlayer.getUUID().equals(shopBe.getOwnerUuid()) || serverPlayer.hasPermissions(2);
+        serverPlayer.openMenu(new SimpleMenuProvider(
+                (syncId, inventory, p) -> new ShopBrowseScreenHandler(syncId, inventory, shopBe.getShopId(), shopBe.isAdminShop(), ownerOrOperator),
+                Component.literal("Shop")
+        ));
+        ShopNetworking.syncShop(serverPlayer, shopBe.getShopId(), shopBe.isAdminShop(), ownerOrOperator);
         return InteractionResult.CONSUME;
     }
 
@@ -74,7 +82,7 @@ public class ShopBlock extends BaseEntityBlock {
         }
 
         if (level.getBlockEntity(pos) instanceof ShopBlockEntity shopBe) {
-            initializeShopRecord(level, pos, shopBe, serverPlayer, false);
+            ensureShopRecord(level, pos, shopBe, serverPlayer, false, true);
         }
     }
 
@@ -96,16 +104,41 @@ public class ShopBlock extends BaseEntityBlock {
         super.onRemove(state, level, pos, newState, movedByPiston);
     }
 
-    protected void initializeShopRecord(Level level, BlockPos pos, ShopBlockEntity shopBe, ServerPlayer player, boolean admin) {
+    protected void ensureShopRecord(
+            Level level,
+            BlockPos pos,
+            ShopBlockEntity shopBe,
+            ServerPlayer player,
+            boolean admin,
+            boolean allowOwnerUpdate
+    ) {
+        boolean changed = false;
         if (shopBe.getShopId() == null) {
             shopBe.setShopId(UUID.randomUUID());
+            changed = true;
         }
         if (admin) {
-            shopBe.setOwnerUuid(null);
-            shopBe.setAdminShop(true);
+            if (shopBe.getOwnerUuid() != null) {
+                shopBe.setOwnerUuid(null);
+                changed = true;
+            }
+            if (!shopBe.isAdminShop()) {
+                shopBe.setAdminShop(true);
+                changed = true;
+            }
         } else {
-            shopBe.setOwnerUuid(player.getUUID());
-            shopBe.setAdminShop(false);
+            if (shopBe.isAdminShop()) {
+                shopBe.setAdminShop(false);
+                changed = true;
+            }
+            if ((shopBe.getOwnerUuid() == null || allowOwnerUpdate) && !player.getUUID().equals(shopBe.getOwnerUuid())) {
+                shopBe.setOwnerUuid(player.getUUID());
+                changed = true;
+            }
+        }
+
+        if (!changed) {
+            return;
         }
 
         EconomyManager.getInstance().upsertShop(

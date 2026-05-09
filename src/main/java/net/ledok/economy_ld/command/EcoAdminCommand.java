@@ -8,6 +8,7 @@ import net.ledok.economy_ld.util.CurrencyFormatter;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.server.level.ServerPlayer;
 
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
@@ -55,7 +56,7 @@ public final class EcoAdminCommand {
     }
 
     private static int give(CommandSourceStack source, String username, long amount) {
-        resolveKnownUuid(username).thenCompose(uuid -> EconomyManager.getInstance().give(uuid, username, amount))
+        resolveKnownPlayer(source, username).thenCompose(target -> EconomyManager.getInstance().give(target.uuid(), target.username(), amount))
                 .whenComplete((ignored, error) -> source.getServer().execute(() -> {
                     if (error != null) {
                         if (isUnknownPlayer(error)) {
@@ -71,7 +72,7 @@ public final class EcoAdminCommand {
     }
 
     private static int take(CommandSourceStack source, String username, long amount) {
-        resolveKnownUuid(username).thenCompose(uuid -> EconomyManager.getInstance().take(uuid, username, amount))
+        resolveKnownPlayer(source, username).thenCompose(target -> EconomyManager.getInstance().take(target.uuid(), target.username(), amount))
                 .whenComplete((success, error) -> source.getServer().execute(() -> {
                     if (error != null) {
                         if (isUnknownPlayer(error)) {
@@ -91,7 +92,7 @@ public final class EcoAdminCommand {
     }
 
     private static int set(CommandSourceStack source, String username, long amount) {
-        resolveKnownUuid(username).thenCompose(uuid -> EconomyManager.getInstance().set(uuid, username, amount))
+        resolveKnownPlayer(source, username).thenCompose(target -> EconomyManager.getInstance().set(target.uuid(), target.username(), amount))
                 .whenComplete((ignored, error) -> source.getServer().execute(() -> {
                     if (error != null) {
                         if (isUnknownPlayer(error)) {
@@ -136,12 +137,21 @@ public final class EcoAdminCommand {
         return 1;
     }
 
-    private static CompletableFuture<UUID> resolveKnownUuid(String username) {
+    private static CompletableFuture<ResolvedPlayer> resolveKnownPlayer(CommandSourceStack source, String username) {
+        ServerPlayer onlineMatch = source.getServer().getPlayerList().getPlayers().stream()
+                .filter(player -> player.getName().getString().equalsIgnoreCase(username))
+                .findFirst()
+                .orElse(null);
+        if (onlineMatch != null) {
+            return CompletableFuture.completedFuture(new ResolvedPlayer(onlineMatch.getUUID(), onlineMatch.getName().getString()));
+        }
+
         return EconomyManager.getInstance().getUuidByUsername(username).thenCompose(uuidOpt -> {
             if (uuidOpt.isEmpty()) {
                 return CompletableFuture.failedFuture(new IllegalArgumentException("UNKNOWN_PLAYER:" + username));
             }
-            return CompletableFuture.completedFuture(uuidOpt.get());
+            return EconomyManager.getInstance().getUsernameByUuid(uuidOpt.get())
+                    .thenApply(nameOpt -> new ResolvedPlayer(uuidOpt.get(), nameOpt.orElse(username)));
         });
     }
 
@@ -155,5 +165,8 @@ public final class EcoAdminCommand {
             return error.getCause().getMessage();
         }
         return error.getMessage();
+    }
+
+    private record ResolvedPlayer(UUID uuid, String username) {
     }
 }

@@ -8,6 +8,8 @@ import net.ledok.economy_ld.command.BalanceCommand;
 import net.ledok.economy_ld.command.EcoAdminCommand;
 import net.ledok.economy_ld.command.PayCommand;
 import net.ledok.economy_ld.manager.EconomyManager;
+import net.ledok.economy_ld.network.ShopNetworking;
+import net.ledok.economy_ld.screen.ModMenus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,6 +21,9 @@ public class EconomyLdMod implements ModInitializer {
     public void onInitialize() {
         EconomyManager.initialize(LOGGER);
         ModBlocks.register();
+        ModMenus.register();
+        ShopNetworking.registerPayloadTypes();
+        ShopNetworking.registerServerReceivers();
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             BalanceCommand.register(dispatcher);
             PayCommand.register(dispatcher);

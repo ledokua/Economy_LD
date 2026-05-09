@@ -4,14 +4,17 @@ import net.ledok.economy_ld.config.ConfigLoader;
 import net.ledok.economy_ld.config.EconomyConfig;
 import net.ledok.economy_ld.db.DatabaseFactory;
 import net.ledok.economy_ld.db.EconomyDatabase;
+import net.ledok.economy_ld.shop.ShopListing;
 import net.ledok.economy_ld.shop.ShopRecord;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
 
 import java.util.UUID;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -78,6 +81,10 @@ public final class EconomyManager {
         return requireDatabase().getUuidByUsername(username);
     }
 
+    public CompletableFuture<Optional<String>> getUsernameByUuid(UUID uuid) {
+        return requireDatabase().getUsernameByUuid(uuid);
+    }
+
     public CompletableFuture<Void> give(UUID uuid, String username, long amount) {
         if (amount <= 0) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Amount must be greater than 0"));
@@ -130,6 +137,43 @@ public final class EconomyManager {
 
     public CompletableFuture<Void> deleteShop(UUID shopId) {
         return requireDatabase().deleteShop(shopId);
+    }
+
+    public CompletableFuture<Void> addListing(UUID shopId, ItemStack item, Long priceBuy, Long priceSell, int perOp, Long buyCap) {
+        return requireDatabase().addListing(shopId, item, priceBuy, priceSell, perOp, buyCap);
+    }
+
+    public CompletableFuture<List<ShopListing>> getListings(UUID shopId) {
+        return requireDatabase().getListings(shopId);
+    }
+
+    public CompletableFuture<Void> removeListing(UUID listingId) {
+        return requireDatabase().removeListing(listingId);
+    }
+
+    public CompletableFuture<Void> updateListing(UUID listingId, Long priceBuy, Long priceSell, int perOp, Long buyCap) {
+        return requireDatabase().updateListing(listingId, priceBuy, priceSell, perOp, buyCap);
+    }
+
+    public CompletableFuture<Boolean> restockListing(UUID listingId, int quantity) {
+        if (quantity <= 0) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Quantity must be greater than 0"));
+        }
+        return requireDatabase().restockListing(listingId, quantity);
+    }
+
+    public CompletableFuture<Boolean> buyItem(UUID listingId, UUID buyerUuid, String buyerUsername, int quantity) {
+        if (quantity <= 0) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Quantity must be greater than 0"));
+        }
+        return requireDatabase().buyItem(listingId, buyerUuid, buyerUsername, quantity);
+    }
+
+    public CompletableFuture<Boolean> sellItem(UUID listingId, UUID sellerUuid, String sellerUsername, int quantity) {
+        if (quantity <= 0) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("Quantity must be greater than 0"));
+        }
+        return requireDatabase().sellItem(listingId, sellerUuid, sellerUsername, quantity);
     }
 
     public CompletableFuture<Void> reloadConfig() {
