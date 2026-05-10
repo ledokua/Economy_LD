@@ -1,5 +1,6 @@
 package net.ledok.economy_ld.client.screen;
 
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import io.wispforest.owo.ui.base.BaseOwoHandledScreen;
 import io.wispforest.owo.ui.component.BoxComponent;
 import io.wispforest.owo.ui.component.ButtonComponent;
@@ -17,8 +18,10 @@ import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.VerticalAlignment;
+import net.ledok.economy_ld.network.packet.c2s.AddListingC2SPacket;
 import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
 import net.ledok.economy_ld.shop.ShopListing;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.ItemStack;
@@ -293,10 +296,9 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
             return;
         }
 
-        ItemStack previewStack = ItemStack.EMPTY;
-        if (this.minecraft != null && this.minecraft.player != null) {
-            previewStack = this.minecraft.player.getMainHandItem().copyWithCount(1);
-        }
+        final ItemStack previewStack = (this.minecraft != null && this.minecraft.player != null)
+                ? this.minecraft.player.getMainHandItem().copyWithCount(1)
+                : ItemStack.EMPTY;
 
         final String[] buyValue = {"0"};
         final String[] sellValue = {"0"};
@@ -421,6 +423,35 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
                 errorText.text(Component.literal("⚠ SET AT LEAST ONE PRICE."));
                 return;
             }
+            if (previewStack.isEmpty()) {
+                errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33)));
+                errorText.text(Component.literal("⚠ HOLD AN ITEM IN MAIN HAND."));
+                return;
+            }
+            if (this.minecraft == null || this.minecraft.level == null) {
+                return;
+            }
+
+            long perOp = Math.max(1, parseLongField(perOpValue[0], 1));
+            long buyCap = Math.max(0, parseLongField(buyCapValue[0], 0));
+            if (!(previewStack.saveOptional(this.minecraft.level.registryAccess()) instanceof CompoundTag itemNbt)) {
+                errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33)));
+                errorText.text(Component.literal("⚠ FAILED TO SERIALIZE ITEM."));
+                return;
+            }
+
+            Long priceBuy = buy > 0 ? buy : null;
+            Long priceSell = sell > 0 ? sell : null;
+            Long packetBuyCap = buyCap > 0 ? buyCap : null;
+
+            ClientPlayNetworking.send(new AddListingC2SPacket(
+                    activeShopId(),
+                    itemNbt,
+                    priceBuy,
+                    priceSell,
+                    (int) Math.min(Integer.MAX_VALUE, perOp),
+                    packetBuyCap
+            ));
             closeListingDialog();
         }));
 
@@ -443,7 +474,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
             String suffix,
             String[] stateRef
     ) {
-        FlowLayout field = Containers.verticalFlow(Sizing.fixed(232), Sizing.content());
+        FlowLayout field = Containers.verticalFlow(Sizing.fixed(220), Sizing.content());
         field.gap(4);
 
         FlowLayout head = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
