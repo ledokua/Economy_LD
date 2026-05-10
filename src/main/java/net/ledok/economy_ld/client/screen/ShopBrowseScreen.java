@@ -19,6 +19,11 @@ import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.VerticalAlignment;
 import net.ledok.economy_ld.network.packet.c2s.AddListingC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.BuyItemC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.RemoveListingC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.RestockListingC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.SellItemC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.UpdateListingC2SPacket;
 import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
 import net.ledok.economy_ld.shop.ShopListing;
 import net.minecraft.nbt.CompoundTag;
@@ -135,7 +140,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         }
 
         if (force || this.lastListingCount != listings.size() || pageChanged) {
-            rebuildContent(listings, canManage);
+            rebuildContent(listings, canManage, adminShop);
             this.lastListingCount = listings.size();
         }
     }
@@ -213,16 +218,16 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         return body;
     }
 
-    private void rebuildContent(List<ShopListing> listings, boolean canManage) {
+    private void rebuildContent(List<ShopListing> listings, boolean canManage, boolean adminShop) {
         this.contentArea.clearChildren();
         if (listings.isEmpty()) {
             this.contentArea.child(buildEmptyBody());
             return;
         }
-        this.contentArea.child(buildListingsBody(listings, canManage));
+        this.contentArea.child(buildListingsBody(listings, canManage, adminShop));
     }
 
-    private FlowLayout buildListingsBody(List<ShopListing> listings, boolean canManage) {
+    private FlowLayout buildListingsBody(List<ShopListing> listings, boolean canManage, boolean adminShop) {
         FlowLayout body = Containers.verticalFlow(Sizing.fill(100), Sizing.expand());
         body.surface(Surface.flat(0xFF111C29).and(Surface.outline(0xFF1C2D3F)));
         body.padding(Insets.of(8));
@@ -236,19 +241,24 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         header.child(cellLabel("BUY", 80, 0xFF6D8299));
         header.child(cellLabel("SELL", 80, 0xFF6D8299));
         header.child(cellLabel("STOCK", 90, 0xFF6D8299));
-        header.child(cellLabel("ACTIONS", 210, 0xFF6D8299));
+        header.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content())); // spacer
+        if (canManage) {
+            header.child(cellLabelRight("ACTIONS", 210, 0xFF6D8299));
+        } else {
+            header.child(cellLabelRight("ACTIONS", 130, 0xFF6D8299));
+        }
         body.child(header);
 
         int start = this.menu.getPage() * LISTINGS_PER_PAGE;
         int end = Math.min(start + LISTINGS_PER_PAGE, listings.size());
         for (int i = start; i < end; i++) {
-            body.child(buildListingRow(listings.get(i), i, canManage));
+            body.child(buildListingRow(listings.get(i), i, canManage, adminShop));
         }
 
         return body;
     }
 
-    private FlowLayout buildListingRow(ShopListing listing, int index, boolean canManage) {
+    private FlowLayout buildListingRow(ShopListing listing, int index, boolean canManage, boolean adminShop) {
         int bg = (index % 2 == 0) ? 0xFF1A2A3A : 0xFF1C2D40;
         FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(52));
         row.surface(Surface.flat(bg));
@@ -256,6 +266,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         row.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
         row.gap(8);
 
+        // Item cell
         FlowLayout itemCell = Containers.horizontalFlow(Sizing.fixed(250), Sizing.content());
         itemCell.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
         itemCell.gap(6);
@@ -267,27 +278,55 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         itemCell.child(itemText);
         row.child(itemCell);
 
-        row.child(cellLabel(listing.priceBuy() == null ? "-" : String.format("%,d", listing.priceBuy()), 80, 0xFF8EDB84));
-        row.child(cellLabel(listing.priceSell() == null ? "-" : String.format("%,d", listing.priceSell()), 80, 0xFFB899F2));
+        // Buy price
+        String buyText = listing.priceBuy() == null ? "–" : String.format("%,d", listing.priceBuy());
+        int buyColor = listing.priceBuy() == null ? 0xFF4A5F78 : 0xFF8EDB84;
+        row.child(cellLabel(buyText, 80, buyColor));
 
-        String stock = listing.stock() == null ? "∞" : String.format("%,d", listing.stock());
-        row.child(cellLabel(stock, 90, 0xFFD0DCEC));
+        // Sell price
+        String sellText = listing.priceSell() == null ? "–" : String.format("%,d", listing.priceSell());
+        int sellColor = listing.priceSell() == null ? 0xFF4A5F78 : 0xFFB899F2;
+        row.child(cellLabel(sellText, 80, sellColor));
 
-        FlowLayout actions = Containers.horizontalFlow(Sizing.fixed(210), Sizing.content());
+        // Stock — always ∞ for admin shops
+        String stockText = adminShop ? "∞" : (listing.stock() == null ? "∞" : String.format("%,d", listing.stock()));
+        int stockColor = adminShop ? 0xFFB899F2 : 0xFFD0DCEC;
+        row.child(cellLabel(stockText, 90, stockColor));
+
+        // Spacer to push actions to the right
+        row.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
+
+        // Actions — owner sees EDIT/RESTOCK/REMOVE, buyer sees BUY/SELL
+        FlowLayout actions = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
         actions.gap(6);
-        ButtonComponent edit = smallButton("EDIT", 56, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A);
-        ButtonComponent restock = smallButton("RESTOCK", 70, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A);
-        ButtonComponent remove = smallButton("REMOVE", 62, 24, 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F);
-        if (!canManage) {
-            edit.active(false);
-            restock.active(false);
-            remove.active(false);
+
+        if (canManage) {
+            ButtonComponent edit = smallButton("EDIT", 56, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A,
+                    b -> openEditDialog(listing));
+            ButtonComponent restock = smallButton("RESTOCK", 70, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A,
+                    b -> ClientPlayNetworking.send(new RestockListingC2SPacket(listing.id(), listing.perOp())));
+            ButtonComponent remove = smallButton("REMOVE", 62, 24, 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F,
+                    b -> ClientPlayNetworking.send(new RemoveListingC2SPacket(listing.id())));
+            actions.child(edit);
+            actions.child(restock);
+            actions.child(remove);
+        } else {
+            if (listing.priceBuy() != null) {
+                ButtonComponent buy = smallButton("BUY", 56, 24, 0xFF1A2E1A, 0xFF244A24, 0xFF3A7A3A,
+                        b -> ClientPlayNetworking.send(new BuyItemC2SPacket(listing.id(), listing.perOp())));
+                actions.child(buy);
+            }
+            if (listing.priceSell() != null) {
+                ButtonComponent sell = smallButton("SELL", 56, 24, 0xFF1E1A2E, 0xFF2A2244, 0xFF6A52B8,
+                        b -> ClientPlayNetworking.send(new SellItemC2SPacket(listing.id(), listing.perOp())));
+                actions.child(sell);
+            }
+            if (listing.priceBuy() == null && listing.priceSell() == null) {
+                actions.child(tint("–", 0xFF4A5F78));
+            }
         }
-        actions.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
-        actions.child(edit);
-        actions.child(restock);
-        actions.child(remove);
+
         row.child(actions);
         return row;
     }
@@ -395,6 +434,154 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         label.horizontalSizing(Sizing.fixed(width));
         label.maxWidth(width);
         return label;
+    }
+
+    private LabelComponent cellLabelRight(String text, int width, int color) {
+        LabelComponent label = tint(text, color);
+        label.horizontalSizing(Sizing.fixed(width));
+        label.maxWidth(width);
+        label.horizontalTextAlignment(HorizontalAlignment.RIGHT);
+        return label;
+    }
+
+    private void openEditDialog(ShopListing listing) {
+        if (this.listingDialog != null) return;
+
+        final String[] buyValue = {listing.priceBuy() == null ? "0" : String.valueOf(listing.priceBuy())};
+        final String[] sellValue = {listing.priceSell() == null ? "0" : String.valueOf(listing.priceSell())};
+        final String[] perOpValue = {String.valueOf(listing.perOp())};
+        final String[] buyCapValue = {listing.buyCap() == null ? "0" : String.valueOf(listing.buyCap())};
+
+        FlowLayout panel = Containers.verticalFlow(Sizing.fixed(500), Sizing.content());
+        panel.surface(Surface.flat(0xFF111C28).and(Surface.outline(0xFF4E6177)));
+        panel.padding(Insets.of(10));
+        panel.gap(8);
+
+        FlowLayout head = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        head.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
+        FlowLayout titlePack = Containers.verticalFlow(Sizing.expand(), Sizing.content());
+        titlePack.gap(1);
+        titlePack.child(tint("Edit Listing", 0xFFE6EDF7));
+        titlePack.child(tint(listing.itemStack().getItem().toString().toUpperCase(), 0xFF7E93AA));
+        head.child(titlePack);
+        head.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
+        head.child(smallButton("✕", 28, 28, 0xFF132131, 0xFF193047, 0xFF334A60, b -> closeListingDialog()));
+
+        FlowLayout body = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
+        body.surface(Surface.flat(0xFF1A2A3A).and(Surface.outline(0xFF334A60)));
+        body.padding(Insets.of(12));
+        body.gap(10);
+
+        FlowLayout itemCard = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        itemCard.surface(Surface.flat(0xFF202E3F).and(Surface.outline(0xFF3B526B)));
+        itemCard.padding(Insets.of(12));
+        itemCard.gap(10);
+        itemCard.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
+        itemCard.child(Components.item(listing.itemStack().copyWithCount(1)).showOverlay(true).setTooltipFromStack(true));
+        FlowLayout itemCardText = Containers.verticalFlow(Sizing.expand(), Sizing.content());
+        itemCardText.gap(2);
+        itemCardText.child(tint(listing.itemStack().getHoverName().getString(), 0xFFE6EDF7));
+        String stockLabel = listing.stock() == null ? "∞  IN STOCK" : "x" + listing.stock() + "  IN STOCK";
+        itemCardText.child(tint(stockLabel, 0xFF8DA2B8));
+        itemCard.child(itemCardText);
+        body.child(itemCard);
+
+        LabelComponent previewLine1 = tint("", 0xFF91C982);
+        LabelComponent previewLine2 = tint("", 0xFFA88FE7);
+
+        FlowLayout row1 = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        row1.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
+        row1.gap(12);
+        FieldUi buyField = createDialogField(row1, "BUY PRICE", "player buys from shop", buyValue[0], "LC", buyValue);
+        FieldUi sellField = createDialogField(row1, "SELL PRICE", "shop buys from player", sellValue[0], "LC", sellValue);
+        body.child(row1);
+
+        FlowLayout row2 = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        row2.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
+        row2.gap(12);
+        FieldUi perOpField = createDialogField(row2, "ITEMS PER OP", "per buy / sell click", perOpValue[0], "x", perOpValue);
+        FieldUi buyCapField = createDialogField(row2, "BUY CAP", "max stock from players", buyCapValue[0], "max", buyCapValue);
+        body.child(row2);
+
+        FlowLayout summary = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
+        summary.surface(Surface.flat(0xFF202E3F).and(Surface.outline(0xFF3B526B)));
+        summary.padding(Insets.of(8));
+        summary.gap(4);
+        summary.child(previewLine1);
+        summary.child(previewLine2);
+        body.child(summary);
+
+        FlowLayout errorBanner = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(38));
+        errorBanner.padding(Insets.of(8));
+        errorBanner.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
+        LabelComponent errorText = tint("⚠ SET AT LEAST ONE PRICE.", 0xFFE7B69F);
+        errorBanner.child(errorText);
+        body.child(errorBanner);
+
+        Runnable refreshPreview = () -> {
+            long buy = parseLongField(buyValue[0], 0);
+            long sell = parseLongField(sellValue[0], 0);
+            long perOp = Math.max(1, parseLongField(perOpValue[0], 1));
+            long buyCap = Math.max(0, parseLongField(buyCapValue[0], 0));
+            boolean valid = buy > 0 || sell > 0;
+            applyFieldStyle(buyField, buy > 0 ? FieldStyle.ACTIVE : FieldStyle.INVALID);
+            applyFieldStyle(sellField, sell > 0 ? FieldStyle.ACTIVE : FieldStyle.INVALID);
+            applyFieldStyle(perOpField, FieldStyle.ACTIVE);
+            applyFieldStyle(buyCapField, sell > 0 ? FieldStyle.ACTIVE : FieldStyle.DIMMED);
+            previewLine1.text(Component.literal(buy > 0 ? "→ PLAYER BUYS ×" + perOp + " FOR " + String.format("%,d", buy) + " LC" : ""));
+            if (sell > 0) {
+                String cap = buyCap > 0 ? " UP TO " + buyCap : "";
+                previewLine2.text(Component.literal("← SHOP BUYS ×" + perOp + " FOR " + String.format("%,d", sell) + " LC" + cap));
+            } else {
+                previewLine2.text(Component.literal(""));
+            }
+            if (valid) {
+                errorBanner.surface(Surface.flat(0x00000000));
+                errorText.text(Component.literal(""));
+            } else {
+                errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33)));
+                errorText.text(Component.literal("⚠ SET AT LEAST ONE PRICE."));
+            }
+        };
+        buyField.input().onChanged().subscribe(v -> refreshPreview.run());
+        sellField.input().onChanged().subscribe(v -> refreshPreview.run());
+        perOpField.input().onChanged().subscribe(v -> refreshPreview.run());
+        buyCapField.input().onChanged().subscribe(v -> refreshPreview.run());
+        refreshPreview.run();
+
+        FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
+        actions.gap(6);
+        actions.child(smallButton("CANCEL", 98, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
+        actions.child(smallButton("CONFIRM", 108, 32, 0xFF9A77E8, 0xFFAA8AF0, 0xFFC4AFFF, b -> {
+            long buy = parseLongField(buyValue[0], 0);
+            long sell = parseLongField(sellValue[0], 0);
+            if (buy <= 0 && sell <= 0) {
+                errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33)));
+                errorText.text(Component.literal("⚠ SET AT LEAST ONE PRICE."));
+                return;
+            }
+            long perOp = Math.max(1, parseLongField(perOpValue[0], 1));
+            long buyCap = Math.max(0, parseLongField(buyCapValue[0], 0));
+            ClientPlayNetworking.send(new UpdateListingC2SPacket(
+                    listing.id(),
+                    buy > 0 ? buy : null,
+                    sell > 0 ? sell : null,
+                    (int) Math.min(Integer.MAX_VALUE, perOp),
+                    buyCap > 0 ? buyCap : null
+            ));
+            closeListingDialog();
+        }));
+
+        panel.child(head);
+        panel.child(body);
+        panel.child(actions);
+
+        this.listingDialog = Containers.overlay(panel);
+        this.listingDialog.closeOnClick(false);
+        this.listingDialog.surface(Surface.flat(0x88000000));
+        this.listingDialog.zIndex(300);
+        this.rootLayout.child(this.listingDialog);
     }
 
     private void openListingDialog() {
