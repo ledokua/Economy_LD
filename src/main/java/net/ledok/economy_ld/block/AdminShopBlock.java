@@ -16,6 +16,8 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.ledok.economy_ld.network.ShopNetworking;
 import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
 
+import java.util.UUID;
+
 public class AdminShopBlock extends ShopBlock {
     public static final MapCodec<AdminShopBlock> CODEC = simpleCodec(AdminShopBlock::new);
 
@@ -43,11 +45,17 @@ public class AdminShopBlock extends ShopBlock {
 
         if (level.getBlockEntity(pos) instanceof ShopBlockEntity shopBe) {
             ensureShopRecord(level, pos, shopBe, serverPlayer, true, false);
+            UUID shopId = shopBe.getShopId();
+            boolean isAdminShop = shopBe.isAdminShop();
+            boolean ownerOrOperator = serverPlayer.hasPermissions(2);
+            if (shopId == null) {
+                return InteractionResult.CONSUME;
+            }
             serverPlayer.openMenu(new SimpleMenuProvider(
-                    (syncId, inventory, p) -> new ShopBrowseScreenHandler(syncId, inventory, shopBe.getShopId(), true, true),
-                    Component.literal("Admin Shop")
+                    (syncId, inventory, p) -> new ShopBrowseScreenHandler(syncId, inventory, shopId, isAdminShop, ownerOrOperator),
+                    Component.empty()
             ));
-            ShopNetworking.syncShop(serverPlayer, shopBe.getShopId(), true, true);
+            ShopNetworking.syncShop(serverPlayer, shopId, isAdminShop, ownerOrOperator);
         }
         return InteractionResult.CONSUME;
     }

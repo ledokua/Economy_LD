@@ -3,6 +3,7 @@ package net.ledok.economy_ld.network;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.ledok.economy_ld.EconomyLdMod;
 import net.ledok.economy_ld.client.screen.ShopClientState;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.network.packet.c2s.AddListingC2SPacket;
@@ -63,35 +64,38 @@ public final class ShopNetworking {
         });
 
         ServerPlayNetworking.registerGlobalReceiver(SellItemC2SPacket.TYPE, (payload, context) -> {
-            ShopBrowseScreenHandler menu = activeMenu(context.player());
-            if (menu == null) {
-                return;
-            }
-            EconomyManager.getInstance().getListings(menu.getShopId()).whenComplete((listings, error) -> {
-                if (error != null) {
+            context.server().execute(() -> {
+                ShopBrowseScreenHandler menu = activeMenu(context.player());
+                if (menu == null) {
                     return;
                 }
-                listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing -> {
-                    int quantity = Math.max(1, payload.quantity());
-                    int removed = removeMatchingItems(context.player(), listing.itemStack(), quantity);
-                    if (removed < quantity) {
-                        if (removed > 0) {
-                            ItemStack rollback = listing.itemStack().copyWithCount(removed);
-                            context.player().getInventory().add(rollback);
-                        }
-                        return;
-                    }
-
-                    EconomyManager.getInstance().sellItem(listing.id(), context.player().getUUID(), context.player().getName().getString(), quantity)
-                            .whenComplete((success, err2) -> context.server().execute(() -> {
-                                if (err2 != null || !Boolean.TRUE.equals(success)) {
-                                    ItemStack rollback = listing.itemStack().copyWithCount(quantity);
-                                    context.player().getInventory().add(rollback);
+                EconomyManager.getInstance().getListings(menu.getShopId()).whenComplete((listings, error) ->
+                        context.server().execute(() -> {
+                            if (error != null) {
+                                return;
+                            }
+                            listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing -> {
+                                int quantity = Math.max(1, payload.quantity());
+                                int removed = removeMatchingItems(context.player(), listing.itemStack(), quantity);
+                                if (removed < quantity) {
+                                    if (removed > 0) {
+                                        ItemStack rollback = listing.itemStack().copyWithCount(removed);
+                                        context.player().getInventory().add(rollback);
+                                    }
                                     return;
                                 }
-                                syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
-                            }));
-                });
+
+                                EconomyManager.getInstance().sellItem(listing.id(), context.player().getUUID(), context.player().getName().getString(), quantity)
+                                        .whenComplete((success, err2) -> context.server().execute(() -> {
+                                            if (err2 != null || !Boolean.TRUE.equals(success)) {
+                                                ItemStack rollback = listing.itemStack().copyWithCount(quantity);
+                                                context.player().getInventory().add(rollback);
+                                                return;
+                                            }
+                                            syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+                                        }));
+                            });
+                        }));
             });
         });
 
@@ -157,19 +161,49 @@ public final class ShopNetworking {
         });
 
         ServerPlayNetworking.registerGlobalReceiver(RemoveListingC2SPacket.TYPE, (payload, context) -> {
-            ShopBrowseScreenHandler menu = activeMenu(context.player());
-            if (menu == null || !menu.isOwnerOrOperator()) {
-                return;
-            }
-            EconomyManager.getInstance().getListings(menu.getShopId()).whenComplete((listings, error) -> {
-                if (error != null) {
+            context.server().execute(() -> {
+                ShopBrowseScreenHandler menu = activeMenu(context.player());
+                if (menu == null || !menu.isOwnerOrOperator()) {
                     return;
                 }
-                listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing ->
-                        EconomyManager.getInstance().removeListing(listing.id())
-                                .whenComplete((ignored, err2) -> context.server().execute(() ->
-                                        syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator())))
-                );
+                EconomyManager manager = EconomyManager.getInstance();
+                manager.getListings(menu.getShopId()).whenComplete((listings, error) ->
+                        context.server().execute(() -> {
+                            if (error != null) {
+                                return;
+                            }
+                            listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing -> {
+                                long stock = listing.stock() == null ? 0L : listing.stock();
+                                Runnable removeAndSync = () -> manager.removeListing(listing.id())
+                                        .whenComplete((ignored, err2) -> context.server().execute(() ->
+                                                syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator())));
+
+                                if (stock <= 0L) {
+                                    removeAndSync.run();
+                                    return;
+                                }
+
+                                manager.getShop(menu.getShopId()).whenComplete((shopOpt, shopError) ->
+                                        context.server().execute(() -> {
+                                            if (shopError != null) {
+                                                EconomyLdMod.LOGGER.warn("Failed to load shop {} before removing listing {}",
+                                                        menu.getShopId(), listing.id(), shopError);
+                                                removeAndSync.run();
+                                                return;
+                                            }
+                                            if (shopOpt.isPresent() && shopOpt.get().ownerUuid() != null) {
+                                                ServerPlayer owner = context.server().getPlayerList().getPlayer(shopOpt.get().ownerUuid());
+                                                if (owner != null) {
+                                                    giveOrDrop(owner, listing.itemStack(), stock);
+                                                } else {
+                                                    EconomyLdMod.LOGGER.warn("Could not return {} items from listing {}: owner {} is offline",
+                                                            stock, listing.id(), shopOpt.get().ownerUuid());
+                                                }
+                                            }
+                                            removeAndSync.run();
+                                        }));
+                            });
+                        }));
             });
         });
 
@@ -271,5 +305,19 @@ public final class ShopNetworking {
             }
         }
         return removed;
+    }
+
+    private static void giveOrDrop(ServerPlayer player, ItemStack template, long totalAmount) {
+        long remaining = totalAmount;
+        int maxStack = Math.max(1, template.getMaxStackSize());
+        while (remaining > 0) {
+            int toGiveCount = (int) Math.min(remaining, maxStack);
+            ItemStack toGive = template.copyWithCount(toGiveCount);
+            boolean added = player.getInventory().add(toGive);
+            if (!added && !toGive.isEmpty()) {
+                player.drop(toGive, false);
+            }
+            remaining -= toGiveCount;
+        }
     }
 }

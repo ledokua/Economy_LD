@@ -479,6 +479,15 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                         debit.setString(2, buyerUuid.toString());
                         debit.executeUpdate();
                     }
+                    UUID ownerUuid = findShopOwnerUuidForListing(conn, listingId);
+                    if (ownerUuid != null) {
+                        ensureWalletExists(conn, ownerUuid);
+                        try (PreparedStatement creditOwner = conn.prepareStatement("UPDATE wallets SET balance = balance + ? WHERE uuid = ?")) {
+                            creditOwner.setLong(1, total);
+                            creditOwner.setString(2, ownerUuid.toString());
+                            creditOwner.executeUpdate();
+                        }
+                    }
                     if (stock != null) {
                         try (PreparedStatement dec = conn.prepareStatement("UPDATE shop_listings SET stock = stock - ? WHERE id = ?")) {
                             dec.setInt(1, quantity);
@@ -535,6 +544,26 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                     }
 
                     long total = priceSell * Math.max(1, quantity);
+                    UUID ownerUuid = findShopOwnerUuidForListing(conn, listingId);
+                    if (ownerUuid != null) {
+                        ensureWalletExists(conn, ownerUuid);
+                        long ownerBalance;
+                        try (PreparedStatement q = conn.prepareStatement("SELECT balance FROM wallets WHERE uuid = ?")) {
+                            q.setString(1, ownerUuid.toString());
+                            try (ResultSet rs = q.executeQuery()) {
+                                ownerBalance = rs.next() ? rs.getLong("balance") : 0L;
+                            }
+                        }
+                        if (ownerBalance < total) {
+                            conn.rollback();
+                            return false;
+                        }
+                        try (PreparedStatement debitOwner = conn.prepareStatement("UPDATE wallets SET balance = balance - ? WHERE uuid = ?")) {
+                            debitOwner.setLong(1, total);
+                            debitOwner.setString(2, ownerUuid.toString());
+                            debitOwner.executeUpdate();
+                        }
+                    }
                     try (PreparedStatement credit = conn.prepareStatement("UPDATE wallets SET balance = balance + ? WHERE uuid = ?")) {
                         credit.setLong(1, total);
                         credit.setString(2, sellerUuid.toString());
@@ -573,6 +602,32 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
             updateName.setString(1, username);
             updateName.setString(2, uuid.toString());
             updateName.executeUpdate();
+        }
+    }
+
+    private void ensureWalletExists(Connection conn, UUID uuid) throws SQLException {
+        String fallbackUsername = uuid.toString().substring(0, 16);
+        try (PreparedStatement insert = conn.prepareStatement(
+                "INSERT INTO wallets (uuid, username, balance) VALUES (?, ?, 0) ON CONFLICT(uuid) DO NOTHING")) {
+            insert.setString(1, uuid.toString());
+            insert.setString(2, fallbackUsername);
+            insert.executeUpdate();
+        }
+    }
+
+    private UUID findShopOwnerUuidForListing(Connection conn, UUID listingId) throws SQLException {
+        try (PreparedStatement q = conn.prepareStatement("""
+                SELECT owner_uuid FROM shops
+                WHERE id = (SELECT shop_id FROM shop_listings WHERE id = ?)
+                """)) {
+            q.setString(1, listingId.toString());
+            try (ResultSet rs = q.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                String ownerRaw = rs.getString("owner_uuid");
+                return ownerRaw == null || ownerRaw.isBlank() ? null : UUID.fromString(ownerRaw);
+            }
         }
     }
 
