@@ -313,8 +313,9 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
             try (Connection conn = connection();
                  PreparedStatement ps = conn.prepareStatement("""
                          INSERT INTO shop_listings (id, shop_id, item_nbt, price_buy, price_sell, per_op, buy_cap, stock)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                          """)) {
+                boolean adminShop = isAdminShop(conn, shopId);
                 ps.setString(1, UUID.randomUUID().toString());
                 ps.setString(2, shopId.toString());
                 ps.setString(3, ItemStackSerializationUtil.toBase64(item));
@@ -333,6 +334,11 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                     ps.setNull(7, java.sql.Types.BIGINT);
                 } else {
                     ps.setLong(7, buyCap);
+                }
+                if (adminShop) {
+                    ps.setNull(8, java.sql.Types.BIGINT);
+                } else {
+                    ps.setLong(8, 0L);
                 }
                 ps.executeUpdate();
             } catch (SQLException e) {
@@ -650,6 +656,15 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                 WHERE sl.id = ?
                 """)) {
             q.setString(1, listingId.toString());
+            try (ResultSet rs = q.executeQuery()) {
+                return rs.next() && rs.getBoolean("is_admin");
+            }
+        }
+    }
+
+    private boolean isAdminShop(Connection conn, UUID shopId) throws SQLException {
+        try (PreparedStatement q = conn.prepareStatement("SELECT is_admin FROM shops WHERE id = ?")) {
+            q.setString(1, shopId.toString());
             try (ResultSet rs = q.executeQuery()) {
                 return rs.next() && rs.getBoolean("is_admin");
             }

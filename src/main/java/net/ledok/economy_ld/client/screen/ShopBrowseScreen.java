@@ -70,6 +70,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     private int lastListingCount = -1;
     private String lastSearchQuery = null;
     private SortMode lastSortMode = null;
+    private int lastSyncVersion = -1;
 
     private enum SortMode {
         NAME, BUY_PRICE, SELL_PRICE, STOCK;
@@ -238,7 +239,11 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         }
 
         boolean filterChanged = !searchQuery.equals(lastSearchQuery) || sortMode != lastSortMode;
-        if (force || this.lastListingCount != allListings.size() || pageChanged || filterChanged) {
+        int currentSyncVersion = ShopClientState.getSyncVersion();
+        boolean syncedNewData = currentSyncVersion != lastSyncVersion;
+        if (syncedNewData) lastSyncVersion = currentSyncVersion;
+
+        if (force || this.lastListingCount != allListings.size() || pageChanged || filterChanged || syncedNewData) {
             rebuildContent(listings, canManage, adminShop);
             this.lastListingCount = allListings.size();
             this.lastSearchQuery = searchQuery;

@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 public final class ShopClientState {
@@ -17,6 +18,7 @@ public final class ShopClientState {
     private static final Map<UUID, String> OWNER_LABEL_BY_SHOP = new ConcurrentHashMap<>();
     private static final Map<UUID, Long> OPEN_BALANCE_BY_SHOP = new ConcurrentHashMap<>();
     private static final AtomicReference<UUID> LAST_SHOP_ID = new AtomicReference<>(new UUID(0L, 0L));
+    private static final AtomicInteger SYNC_VERSION = new AtomicInteger(0);
 
     private ShopClientState() {
     }
@@ -28,6 +30,11 @@ public final class ShopClientState {
         OWNER_LABEL_BY_SHOP.put(shopId, ownerLabel);
         OPEN_BALANCE_BY_SHOP.put(shopId, openerBalance);
         LAST_SHOP_ID.set(shopId);
+        SYNC_VERSION.incrementAndGet();
+    }
+
+    public static int getSyncVersion() {
+        return SYNC_VERSION.get();
     }
 
     public static List<ShopListing> getListings(UUID shopId) {
