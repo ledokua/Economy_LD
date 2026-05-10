@@ -1,10 +1,9 @@
 package net.ledok.economy_ld.util;
 
-import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtAccounter;
 import net.minecraft.nbt.NbtIo;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 
 import java.io.ByteArrayInputStream;
@@ -17,12 +16,19 @@ public final class ItemStackSerializationUtil {
     }
 
     public static String toBase64(ItemStack stack) {
+        return toBase64(stack, ServerRegistryAccess.require());
+    }
+
+    public static String toBase64(ItemStack stack, HolderLookup.Provider registryAccess) {
+        if (registryAccess == null) {
+            throw new IllegalStateException("Registry access is not available");
+        }
         if (stack.isEmpty()) {
             throw new IllegalArgumentException("Cannot serialize empty ItemStack");
         }
-        CompoundTag tag = new CompoundTag();
-        tag.putString("id", BuiltInRegistries.ITEM.getKey(stack.getItem()).toString());
-        tag.putInt("count", stack.getCount());
+        if (!(stack.saveOptional(registryAccess) instanceof CompoundTag tag)) {
+            throw new IllegalStateException("ItemStack did not serialize to a CompoundTag");
+        }
 
         try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             NbtIo.writeCompressed(tag, output);
@@ -33,15 +39,23 @@ public final class ItemStackSerializationUtil {
     }
 
     public static ItemStack fromBase64(String encoded) {
+        return fromBase64(encoded, ServerRegistryAccess.require());
+    }
+
+    public static ItemStack fromBase64(String encoded, HolderLookup.Provider registryAccess) {
+        if (registryAccess == null) {
+            throw new IllegalStateException("Registry access is not available");
+        }
+        if (encoded == null || encoded.isBlank()) {
+            return ItemStack.EMPTY;
+        }
+
         try (ByteArrayInputStream input = new ByteArrayInputStream(Base64.getDecoder().decode(encoded))) {
-            CompoundTag tag = NbtIo.readCompressed(input, net.minecraft.nbt.NbtAccounter.unlimitedHeap());
-            ResourceLocation itemId = ResourceLocation.parse(tag.getString("id"));
-            Item item = BuiltInRegistries.ITEM.get(itemId);
-            int count = tag.getInt("count");
-            if (item == null || count <= 0) {
+            CompoundTag tag = NbtIo.readCompressed(input, NbtAccounter.unlimitedHeap());
+            if (tag == null) {
                 return ItemStack.EMPTY;
             }
-            return new ItemStack(item, count);
+            return ItemStack.parseOptional(registryAccess, tag);
         } catch (Exception e) {
             throw new RuntimeException("Failed to deserialize ItemStack", e);
         }

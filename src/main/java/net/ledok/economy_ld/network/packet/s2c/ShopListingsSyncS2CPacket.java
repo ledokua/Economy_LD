@@ -2,7 +2,7 @@ package net.ledok.economy_ld.network.packet.s2c;
 
 import net.ledok.economy_ld.EconomyLdMod;
 import net.ledok.economy_ld.shop.ShopListing;
-import net.ledok.economy_ld.util.ItemStackSerializationUtil;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.RegistryFriendlyByteBuf;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
@@ -45,7 +45,10 @@ public record ShopListingsSyncS2CPacket(
         for (ShopListing listing : payload.listings) {
             buf.writeUUID(listing.id());
             buf.writeUUID(listing.shopId());
-            buf.writeUtf(ItemStackSerializationUtil.toBase64(listing.itemStack()));
+            CompoundTag itemNbt = listing.itemStack().saveOptional(buf.registryAccess()) instanceof CompoundTag tag
+                    ? tag
+                    : new CompoundTag();
+            buf.writeNbt(itemNbt);
             writeNullableLong(buf, listing.priceBuy());
             writeNullableLong(buf, listing.priceSell());
             buf.writeInt(listing.perOp());
@@ -65,7 +68,8 @@ public record ShopListingsSyncS2CPacket(
         for (int i = 0; i < size; i++) {
             UUID id = buf.readUUID();
             UUID packetShopId = buf.readUUID();
-            ItemStack stack = ItemStackSerializationUtil.fromBase64(buf.readUtf());
+            CompoundTag itemNbt = buf.readNbt();
+            ItemStack stack = itemNbt == null ? ItemStack.EMPTY : ItemStack.parseOptional(buf.registryAccess(), itemNbt);
             Long priceBuy = readNullableLong(buf);
             Long priceSell = readNullableLong(buf);
             int perOp = buf.readInt();

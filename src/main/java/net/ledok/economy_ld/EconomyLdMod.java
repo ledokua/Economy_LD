@@ -10,6 +10,7 @@ import net.ledok.economy_ld.command.PayCommand;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.network.ShopNetworking;
 import net.ledok.economy_ld.screen.ModMenus;
+import net.ledok.economy_ld.util.ServerRegistryAccess;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +31,10 @@ public class EconomyLdMod implements ModInitializer {
             EcoAdminCommand.register(dispatcher);
         });
 
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> ServerRegistryAccess.set(server.registryAccess()));
+
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
+            ServerRegistryAccess.clear();
             try {
                 EconomyManager.getInstance().shutdown();
             } catch (Exception e) {

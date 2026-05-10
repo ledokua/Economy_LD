@@ -44,11 +44,13 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     private ButtonComponent newListingButton;
     private ButtonComponent firstListingButton;
     private FlowLayout pageBars;
+    private FlowLayout contentArea;
     private StackLayout rootLayout;
     private OverlayContainer<FlowLayout> listingDialog;
 
     private int lastTotalPages = -1;
     private int lastCurrentPage = -1;
+    private int lastListingCount = -1;
 
     public ShopBrowseScreen(ShopBrowseScreenHandler handler, Inventory inventory, Component title) {
         super(handler, inventory, title);
@@ -77,7 +79,8 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout panel = Containers.verticalFlow(Sizing.fill(100), Sizing.fill(100));
         panel.surface(Surface.flat(0xFF0B141E));
         panel.child(buildHeader());
-        panel.child(buildEmptyBody());
+        this.contentArea = Containers.verticalFlow(Sizing.fill(100), Sizing.expand());
+        panel.child(this.contentArea);
         panel.child(buildFooter());
 
         shell.child(panel);
@@ -110,6 +113,8 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
             this.menu.setPage(totalPages - 1);
         }
         int currentPage = this.menu.getPage() + 1;
+        int currentPageIndex = this.menu.getPage();
+        boolean pageChanged = this.lastCurrentPage != currentPage;
 
         this.ownerLabel.text(Component.literal("OWNER  ·  " + owner));
         this.listingCountLabel.text(Component.literal("LISTINGS  ·  " + listings.size()));
@@ -119,12 +124,19 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         this.prevButton.active(currentPage > 1);
         this.nextButton.active(currentPage < totalPages);
         this.newListingButton.active(canManage);
-        this.firstListingButton.active(canManage);
+        if (this.firstListingButton != null) {
+            this.firstListingButton.active(canManage);
+        }
 
-        if (force || this.lastTotalPages != totalPages || this.lastCurrentPage != currentPage) {
-            rebuildPageBars(totalPages, currentPage);
+        if (force || this.lastTotalPages != totalPages || pageChanged) {
+            rebuildPageBars(totalPages, currentPageIndex);
             this.lastTotalPages = totalPages;
             this.lastCurrentPage = currentPage;
+        }
+
+        if (force || this.lastListingCount != listings.size() || pageChanged) {
+            rebuildContent(listings, canManage);
+            this.lastListingCount = listings.size();
         }
     }
 
@@ -201,6 +213,85 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         return body;
     }
 
+    private void rebuildContent(List<ShopListing> listings, boolean canManage) {
+        this.contentArea.clearChildren();
+        if (listings.isEmpty()) {
+            this.contentArea.child(buildEmptyBody());
+            return;
+        }
+        this.contentArea.child(buildListingsBody(listings, canManage));
+    }
+
+    private FlowLayout buildListingsBody(List<ShopListing> listings, boolean canManage) {
+        FlowLayout body = Containers.verticalFlow(Sizing.fill(100), Sizing.expand());
+        body.surface(Surface.flat(0xFF111C29).and(Surface.outline(0xFF1C2D3F)));
+        body.padding(Insets.of(8));
+        body.gap(4);
+
+        FlowLayout header = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        header.surface(Surface.flat(0xFF172433));
+        header.padding(Insets.of(4));
+        header.gap(8);
+        header.child(cellLabel("ITEM", 250, 0xFF6D8299));
+        header.child(cellLabel("BUY", 80, 0xFF6D8299));
+        header.child(cellLabel("SELL", 80, 0xFF6D8299));
+        header.child(cellLabel("STOCK", 90, 0xFF6D8299));
+        header.child(cellLabel("ACTIONS", 210, 0xFF6D8299));
+        body.child(header);
+
+        int start = this.menu.getPage() * LISTINGS_PER_PAGE;
+        int end = Math.min(start + LISTINGS_PER_PAGE, listings.size());
+        for (int i = start; i < end; i++) {
+            body.child(buildListingRow(listings.get(i), i, canManage));
+        }
+
+        return body;
+    }
+
+    private FlowLayout buildListingRow(ShopListing listing, int index, boolean canManage) {
+        int bg = (index % 2 == 0) ? 0xFF1A2A3A : 0xFF1C2D40;
+        FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(52));
+        row.surface(Surface.flat(bg));
+        row.padding(Insets.of(4));
+        row.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
+        row.gap(8);
+
+        FlowLayout itemCell = Containers.horizontalFlow(Sizing.fixed(250), Sizing.content());
+        itemCell.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
+        itemCell.gap(6);
+        itemCell.child(Components.item(listing.itemStack().copyWithCount(1)).showOverlay(true).setTooltipFromStack(true));
+        FlowLayout itemText = Containers.verticalFlow(Sizing.expand(), Sizing.content());
+        itemText.gap(1);
+        itemText.child(tint(listing.itemStack().getHoverName().getString(), 0xFFE4EBF4));
+        itemText.child(tint(listing.itemStack().getItem().toString(), 0xFF6F849A));
+        itemCell.child(itemText);
+        row.child(itemCell);
+
+        row.child(cellLabel(listing.priceBuy() == null ? "-" : String.format("%,d", listing.priceBuy()), 80, 0xFF8EDB84));
+        row.child(cellLabel(listing.priceSell() == null ? "-" : String.format("%,d", listing.priceSell()), 80, 0xFFB899F2));
+
+        String stock = listing.stock() == null ? "∞" : String.format("%,d", listing.stock());
+        row.child(cellLabel(stock, 90, 0xFFD0DCEC));
+
+        FlowLayout actions = Containers.horizontalFlow(Sizing.fixed(210), Sizing.content());
+        actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
+        actions.gap(6);
+        ButtonComponent edit = smallButton("EDIT", 56, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A);
+        ButtonComponent restock = smallButton("RESTOCK", 70, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A);
+        ButtonComponent remove = smallButton("REMOVE", 62, 24, 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F);
+        if (!canManage) {
+            edit.active(false);
+            restock.active(false);
+            remove.active(false);
+        }
+        actions.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
+        actions.child(edit);
+        actions.child(restock);
+        actions.child(remove);
+        row.child(actions);
+        return row;
+    }
+
     private FlowLayout buildFooter() {
         FlowLayout footer = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(58));
         footer.surface(Surface.flat(0xFF0B141E).and(Surface.outline(0xFF1F3042)));
@@ -223,7 +314,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         center.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
         center.gap(10);
 
-        this.pageBars = Containers.horizontalFlow(Sizing.fixed(140), Sizing.fixed(4));
+        this.pageBars = Containers.horizontalFlow(Sizing.fixed(150), Sizing.fixed(4));
         this.pageBars.gap(2);
 
         this.pageLabel = tint("PAGE  1 / 1", 0xFFD0DBE7);
@@ -236,12 +327,20 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         return footer;
     }
 
-    private void rebuildPageBars(int totalPages, int currentPage) {
+    private void rebuildPageBars(int totalPages, int currentPageIndex) {
         this.pageBars.clearChildren();
-        for (int i = 1; i <= totalPages; i++) {
-            BoxComponent bar = Components.box(Sizing.fill(100), Sizing.fill(100));
+        final int containerWidth = 150;
+        final int gap = 2;
+        int totalGapWidth = gap * Math.max(0, totalPages - 1);
+        int usableWidth = Math.max(totalPages, containerWidth - totalGapWidth);
+        int baseWidth = usableWidth / totalPages;
+        int remainder = usableWidth % totalPages;
+
+        for (int i = 0; i < totalPages; i++) {
+            int barWidth = baseWidth + (i < remainder ? 1 : 0);
+            BoxComponent bar = Components.box(Sizing.fixed(barWidth), Sizing.fill(100));
             bar.fill(true);
-            if (i == currentPage) {
+            if (i == currentPageIndex) {
                 bar.color(Color.ofRgb(0xA875FF));
             } else {
                 bar.color(Color.ofRgb(0x3B4D61));
@@ -288,6 +387,13 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     private LabelComponent tint(String text, int color) {
         LabelComponent label = Components.label(Component.literal(text));
         label.color(Color.ofArgb(color));
+        return label;
+    }
+
+    private LabelComponent cellLabel(String text, int width, int color) {
+        LabelComponent label = tint(text, color);
+        label.horizontalSizing(Sizing.fixed(width));
+        label.maxWidth(width);
         return label;
     }
 
