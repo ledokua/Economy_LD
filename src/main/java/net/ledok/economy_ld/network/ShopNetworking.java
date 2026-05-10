@@ -116,19 +116,9 @@ public final class ShopNetworking {
                 context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot add listing: set at least one price above 0.")));
                 return;
             }
-            int toConsume = Math.max(1, item.getCount());
-            int removed = removeMatchingItems(context.player(), item, toConsume);
-            if (removed < toConsume) {
-                if (removed > 0) {
-                    context.player().getInventory().add(item.copyWithCount(removed));
-                }
-                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot add listing: matching item not found in inventory.")));
-                return;
-            }
             EconomyManager.getInstance().addListing(menu.getShopId(), item, buy, sell, payload.perOp(), payload.buyCap())
                     .whenComplete((ignored, error) -> context.server().execute(() -> {
                         if (error != null) {
-                            context.player().getInventory().add(item.copyWithCount(toConsume));
                             context.player().sendSystemMessage(Component.literal("Cannot add listing: " + error.getMessage()));
                             return;
                         }
@@ -154,8 +144,12 @@ public final class ShopNetworking {
                 }
                 listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing ->
                         EconomyManager.getInstance().updateListing(listing.id(), buy, sell, payload.perOp(), payload.buyCap())
-                                .whenComplete((ignored, err2) -> context.server().execute(() ->
-                                        syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator())))
+                                .whenComplete((ignored, err2) -> context.server().execute(() -> {
+                                    if (err2 != null) {
+                                        return;
+                                    }
+                                    syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+                                }))
                 );
             });
         });
@@ -175,8 +169,12 @@ public final class ShopNetworking {
                             listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing -> {
                                 long stock = listing.stock() == null ? 0L : listing.stock();
                                 Runnable removeAndSync = () -> manager.removeListing(listing.id())
-                                        .whenComplete((ignored, err2) -> context.server().execute(() ->
-                                                syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator())));
+                                        .whenComplete((ignored, err2) -> context.server().execute(() -> {
+                                            if (err2 != null) {
+                                                return;
+                                            }
+                                            syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+                                        }));
 
                                 if (stock <= 0L) {
                                     removeAndSync.run();

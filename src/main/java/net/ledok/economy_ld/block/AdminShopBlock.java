@@ -38,10 +38,6 @@ public class AdminShopBlock extends ShopBlock {
         if (!(player instanceof ServerPlayer serverPlayer)) {
             return InteractionResult.CONSUME;
         }
-        if (!serverPlayer.hasPermissions(2)) {
-            serverPlayer.sendSystemMessage(Component.literal("Only operators can use admin shops."));
-            return InteractionResult.CONSUME;
-        }
 
         if (level.getBlockEntity(pos) instanceof ShopBlockEntity shopBe) {
             ensureShopRecord(level, pos, shopBe, serverPlayer, true, false);

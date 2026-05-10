@@ -538,14 +538,20 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                         }
                     }
 
-                    if (stock != null && buyCap != null && stock + quantity > buyCap) {
+                    long total = priceSell * Math.max(1, quantity);
+                    boolean adminShop = isAdminShopForListing(conn, listingId);
+                    if (adminShop) {
+                        if (buyCap == null || buyCap < quantity) {
+                            conn.rollback();
+                            return false;
+                        }
+                    } else if (stock != null && buyCap != null && stock + quantity > buyCap) {
                         conn.rollback();
                         return false;
                     }
 
-                    long total = priceSell * Math.max(1, quantity);
                     UUID ownerUuid = findShopOwnerUuidForListing(conn, listingId);
-                    if (ownerUuid != null) {
+                    if (!adminShop && ownerUuid != null) {
                         ensureWalletExists(conn, ownerUuid);
                         long ownerBalance;
                         try (PreparedStatement q = conn.prepareStatement("SELECT balance FROM wallets WHERE uuid = ?")) {
@@ -569,7 +575,13 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                         credit.setString(2, sellerUuid.toString());
                         credit.executeUpdate();
                     }
-                    if (stock != null) {
+                    if (adminShop) {
+                        try (PreparedStatement decCap = conn.prepareStatement("UPDATE shop_listings SET buy_cap = buy_cap - ? WHERE id = ?")) {
+                            decCap.setInt(1, quantity);
+                            decCap.setString(2, listingId.toString());
+                            decCap.executeUpdate();
+                        }
+                    } else if (stock != null) {
                         try (PreparedStatement inc = conn.prepareStatement("UPDATE shop_listings SET stock = stock + ? WHERE id = ?")) {
                             inc.setInt(1, quantity);
                             inc.setString(2, listingId.toString());
@@ -627,6 +639,19 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                 }
                 String ownerRaw = rs.getString("owner_uuid");
                 return ownerRaw == null || ownerRaw.isBlank() ? null : UUID.fromString(ownerRaw);
+            }
+        }
+    }
+
+    private boolean isAdminShopForListing(Connection conn, UUID listingId) throws SQLException {
+        try (PreparedStatement q = conn.prepareStatement("""
+                SELECT s.is_admin FROM shop_listings sl
+                JOIN shops s ON sl.shop_id = s.id
+                WHERE sl.id = ?
+                """)) {
+            q.setString(1, listingId.toString());
+            try (ResultSet rs = q.executeQuery()) {
+                return rs.next() && rs.getBoolean("is_admin");
             }
         }
     }
