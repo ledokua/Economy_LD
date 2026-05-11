@@ -284,6 +284,7 @@ public final class ShopNetworking {
                                     context.player().getInventory().add(listing.itemStack().copyWithCount(quantity));
                                     return;
                                 }
+                                context.player().inventoryMenu.sendAllDataToRemote();
                                 sendActionResult(context.player(), new ShopActionResultS2CPacket(
                                         ShopActionResultS2CPacket.ActionType.RESTOCKED,
                                         listing.itemStack().getHoverName().getString(),
