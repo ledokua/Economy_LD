@@ -15,6 +15,7 @@ import net.ledok.economy_ld.network.packet.c2s.UpdateListingC2SPacket;
 import net.ledok.economy_ld.network.packet.s2c.ShopActionResultS2CPacket;
 import net.ledok.economy_ld.network.packet.s2c.ShopListingsSyncS2CPacket;
 import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
+import net.ledok.economy_ld.util.ItemStackSerializationUtil;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -348,10 +349,29 @@ public final class ShopNetworking {
     }
 
     private static int removeMatchingItems(ServerPlayer player, ItemStack template, int wanted) {
+        ItemStack normalizedTemplate;
+        try {
+            String encoded = ItemStackSerializationUtil.toBase64(template, player.registryAccess());
+            normalizedTemplate = ItemStackSerializationUtil.fromBase64(encoded, player.registryAccess());
+        } catch (Exception e) {
+            EconomyLdMod.LOGGER.warn("Failed to normalize template for matching, falling back to original", e);
+            normalizedTemplate = template;
+        }
+
         int removed = 0;
         for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
             ItemStack stack = player.getInventory().getItem(i);
-            if (stack.isEmpty() || !ItemStack.isSameItemSameComponents(stack, template)) {
+            if (stack.isEmpty()) {
+                continue;
+            }
+            ItemStack normalizedStack;
+            try {
+                String encoded = ItemStackSerializationUtil.toBase64(stack.copyWithCount(1), player.registryAccess());
+                normalizedStack = ItemStackSerializationUtil.fromBase64(encoded, player.registryAccess());
+            } catch (Exception e) {
+                continue;
+            }
+            if (!ItemStack.isSameItemSameComponents(normalizedStack, normalizedTemplate)) {
                 continue;
             }
             int take = Math.min(wanted - removed, stack.getCount());

@@ -15,6 +15,7 @@ import io.wispforest.owo.ui.core.Color;
 import io.wispforest.owo.ui.core.HorizontalAlignment;
 import io.wispforest.owo.ui.core.Insets;
 import io.wispforest.owo.ui.core.OwoUIAdapter;
+import io.wispforest.owo.ui.core.Positioning;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.VerticalAlignment;
@@ -73,7 +74,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     private SortMode lastSortMode = null;
     private int lastSyncVersion = -1;
     private int lastActionVersion = -1;
-    private OverlayContainer<FlowLayout> toastOverlay = null;
+    private FlowLayout toastWidget = null;
     private long toastExpiryMs = 0;
 
     private enum SortMode {
@@ -138,9 +139,9 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     protected void containerTick() {
         super.containerTick();
         // Expire toast
-        if (this.toastOverlay != null && System.currentTimeMillis() > this.toastExpiryMs) {
-            this.toastOverlay.remove();
-            this.toastOverlay = null;
+        if (this.toastWidget != null && System.currentTimeMillis() > this.toastExpiryMs) {
+            this.toastWidget.remove();
+            this.toastWidget = null;
         }
         // Show new toast if action version changed
         int currentActionVersion = ShopClientState.getActionVersion();
@@ -1137,13 +1138,11 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     // ─── Toast ────────────────────────────────────────────────────────────────
 
     private void showToast(ShopActionResultS2CPacket result) {
-        // Dismiss any existing toast immediately
-        if (this.toastOverlay != null) {
-            this.toastOverlay.remove();
-            this.toastOverlay = null;
+        if (this.toastWidget != null) {
+            this.toastWidget.remove();
+            this.toastWidget = null;
         }
 
-        // Determine colors and text
         int sideColor, titleColor;
         String title, body;
 
@@ -1178,23 +1177,22 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
 
         FlowLayout toast = Containers.verticalFlow(Sizing.fixed(320), Sizing.content());
         final int sc = sideColor;
-        toast.surface(Surface.flat(0xFF111C28).and(Surface.outline(0xFF2A3A4A)).and((ctx, comp) ->
-                ctx.fill(comp.x(), comp.y(), comp.x() + 3, comp.y() + comp.height(), sc)));
+        toast.surface(Surface.flat(0xFF111C28)
+                .and(Surface.outline(0xFF2A3A4A))
+                .and((ctx, comp) -> ctx.fill(comp.x(), comp.y(), comp.x() + 3, comp.y() + comp.height(), sc)));
         toast.padding(Insets.of(10, 12, 10, 16));
         toast.gap(4);
         toast.child(tint(title, titleColor));
         toast.child(tint(body, 0xFFD0DCE8));
 
-        // Position: bottom-right of the shell, above footer
-        FlowLayout posWrapper = Containers.verticalFlow(Sizing.fill(100), Sizing.fill(100));
-        posWrapper.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.BOTTOM);
-        posWrapper.padding(Insets.of(0, 0, 68, 12)); // above footer (58px) + 10px gap
-        posWrapper.child(toast);
+        // Position bottom-right, aligned with footer — no overlay, no event blocking
+        int toastX = this.width - 336;          // 320px wide + 16px right margin
+        int toastY = this.height - 130;          // footer (~58px) + gap + toast height (~60px)
+        toast.positioning(Positioning.absolute(toastX, toastY));
+        toast.zIndex(200);
 
-        this.toastOverlay = Containers.overlay(posWrapper);
-        this.toastOverlay.closeOnClick(false);
-        this.toastOverlay.zIndex(200);
-        this.rootLayout.child(this.toastOverlay);
+        this.toastWidget = toast;
+        this.rootLayout.child(this.toastWidget);
         this.toastExpiryMs = System.currentTimeMillis() + 4000;
     }
 
