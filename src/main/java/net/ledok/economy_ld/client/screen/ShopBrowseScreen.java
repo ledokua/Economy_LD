@@ -172,30 +172,26 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     private List<ShopListing> applyFilterAndSort(List<ShopListing> listings) {
         var stream = listings.stream();
         if (!searchQuery.isBlank()) {
-            String[] tokens = searchQuery.trim().toLowerCase(Locale.ROOT).split("\\s+");
-            stream = stream.filter(l -> {
-                for (String token : tokens) {
-                    if (token.startsWith("@")) {
-                        String ns = token.substring(1);
-                        String itemId = l.itemStack().getItem().toString().toLowerCase(Locale.ROOT);
-                        String namespace = itemId.contains(":") ? itemId.split(":")[0] : itemId;
-                        if (!namespace.contains(ns)) return false;
-                    } else if (token.startsWith("#")) {
-                        String tagQuery = token.substring(1);
-                        boolean tagMatch = l.itemStack().getTags().anyMatch(tag -> {
-                            String path = tag.location().getPath().toLowerCase(Locale.ROOT);
-                            String full = tag.location().toString().toLowerCase(Locale.ROOT);
-                            return path.contains(tagQuery) || full.contains(tagQuery);
-                        });
-                        if (!tagMatch) return false;
-                    } else {
-                        String name = l.itemStack().getHoverName().getString().toLowerCase(Locale.ROOT);
-                        String id = l.itemStack().getItem().toString().toLowerCase(Locale.ROOT);
-                        if (!name.contains(token) && !id.contains(token)) return false;
-                    }
-                }
-                return true;
-            });
+            String q = searchQuery.toLowerCase(Locale.ROOT);
+            if (q.startsWith("#")) {
+                String tagQuery = q.substring(1);
+                stream = stream.filter(l -> l.itemStack().getTags().anyMatch(tag -> {
+                    String tagPath = tag.location().getPath().toLowerCase(Locale.ROOT);
+                    String tagFull = tag.location().toString().toLowerCase(Locale.ROOT);
+                    return tagPath.contains(tagQuery) || tagFull.contains(tagQuery);
+                }));
+            } else if (q.startsWith("@")) {
+                String nsQuery = q.substring(1);
+                stream = stream.filter(l -> {
+                    String itemId = l.itemStack().getItem().toString().toLowerCase(Locale.ROOT);
+                    String namespace = itemId.contains(":") ? itemId.split(":")[0] : itemId;
+                    return namespace.contains(nsQuery);
+                });
+            } else {
+                stream = stream.filter(l ->
+                        l.itemStack().getHoverName().getString().toLowerCase(Locale.ROOT).contains(q) ||
+                                l.itemStack().getItem().toString().toLowerCase(Locale.ROOT).contains(q));
+            }
         }
         stream = switch (sortMode) {
             case NAME -> stream.sorted(Comparator.comparing(l -> l.itemStack().getHoverName().getString()));
@@ -239,10 +235,9 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         bar.child(tint(">", 0xFF4A5F78));
         TextBoxComponent field = Components.textBox(Sizing.expand(), searchQuery);
         field.setMaxLength(64);
-        field.setSuggestion(searchQuery.isEmpty() ? "name  |  @mod  |  #tag" : "");
+        field.setSuggestion("name  |  @mod  |  #tag");
         field.onChanged().subscribe(v -> {
             searchQuery = v;
-            field.setSuggestion(v.isEmpty() ? "name  |  @mod  |  #tag" : "");
             menu.setPage(0);
             refreshUi(true);
         });
@@ -276,8 +271,8 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         String countText = searchQuery.isBlank()
                 ? "LISTINGS  ·  " + allListings.size()
                 : "LISTINGS  ·  " + listings.size() + " / " + allListings.size();
-        this.listingCountLabel.text(Component.literal(countText));
-        this.balanceLabel.text(Component.literal("BAL  ·  " + String.format("%,d", balance) + " LC"));
+        if (!compact) this.listingCountLabel.text(Component.literal(countText));
+        if (!compact) this.balanceLabel.text(Component.literal("BAL  ·  " + String.format("%,d", balance) + " LC"));
         this.pageLabel.text(Component.literal("PAGE  " + String.format("%02d", currentPage) + " / " + String.format("%02d", totalPages)));
         this.prevButton.active(currentPage > 1);
         this.nextButton.active(currentPage < totalPages);
@@ -307,13 +302,13 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     // ─── Header ──────────────────────────────────────────────────────────────
 
     private FlowLayout buildHeader() {
-        FlowLayout header = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(s(64)));
+        FlowLayout header = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(64));
         header.surface(Surface.flat(0xFF0D1722).and(Surface.outline(0xFF1F3042)));
-        header.padding(Insets.of(s(8)));
+        header.padding(Insets.of(8));
         header.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
-        header.gap(s(10));
+        header.gap(10);
 
-        FlowLayout icon = Containers.verticalFlow(Sizing.fixed(s(34)), Sizing.fixed(s(34)));
+        FlowLayout icon = Containers.verticalFlow(Sizing.fixed(34), Sizing.fixed(34));
         icon.surface(Surface.flat(0xFF9C7AE8));
         icon.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
         icon.child(tint("₴", 0xFF201333));
@@ -323,25 +318,25 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         title.child(tint("LeDok's Wares", 0xFFE7EDF5));
 
         FlowLayout subtitle = Containers.horizontalFlow(Sizing.content(), Sizing.content());
-        subtitle.gap(s(6));
+        subtitle.gap(6);
         subtitle.child(tag("PLAYER SHOP"));
         this.ownerLabel = tint("OWNER  ·  Unknown", 0xFF8FA1B5);
         this.listingCountLabel = tint("LISTINGS  ·  0", 0xFF8FA1B5);
         this.balanceLabel = tint("BAL  ·  0 LC", 0xFF9D81EA);
         subtitle.child(this.ownerLabel);
         if (!compact) subtitle.child(this.listingCountLabel);
-        subtitle.child(this.balanceLabel);
+        if (!compact) subtitle.child(this.balanceLabel);
         title.child(subtitle);
 
         FlowLayout controls = Containers.horizontalFlow(Sizing.content(), Sizing.content());
-        controls.gap(s(6));
-        controls.child(smallButton("⌕", s(38), s(32), 0xFF132131, 0xFF193047, 0xFF334A60, b -> toggleSearch()));
-        this.sortButton = smallButton(sortMode.label(), compact ? 80 : 110, s(32), 0xFF132131, 0xFF193047, 0xFF334A60, b -> cycleSortMode());
+        controls.gap(6);
+        controls.child(smallButton("⌕", 38, 32, 0xFF132131, 0xFF193047, 0xFF334A60, b -> toggleSearch()));
+        this.sortButton = smallButton(sortMode.label(), 110, 32, 0xFF132131, 0xFF193047, 0xFF334A60, b -> cycleSortMode());
         controls.child(this.sortButton);
-        this.newListingButton = smallButton(compact ? "+" : "+ NEW LISTING", compact ? s(32) : 132, s(32), 0xFF9A77E8, 0xFFAA8AF0, 0xFFC4AFFF, button -> openItemPicker());
+        this.newListingButton = smallButton("+ NEW LISTING", 132, 32, 0xFF9A77E8, 0xFFAA8AF0, 0xFFC4AFFF, button -> openItemPicker());
         controls.child(this.newListingButton);
-        if (!compact) controls.child(smallButton("⋯", s(38), s(32), 0xFF132131, 0xFF193047, 0xFF334A60));
-        controls.child(smallButton("✕", s(32), s(32), 0xFF132131, 0xFF193047, 0xFF334A60, button -> this.onClose()));
+        controls.child(smallButton("⋯", 38, 32, 0xFF132131, 0xFF193047, 0xFF334A60));
+        controls.child(smallButton("✕", 32, 32, 0xFF132131, 0xFF193047, 0xFF334A60, button -> this.onClose()));
 
         header.child(icon);
         header.child(title);
@@ -392,16 +387,21 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         body.padding(Insets.of(8));
         body.gap(4);
 
+        int itemCellW = compact ? 160 : 250;
+        int priceW = compact ? 60 : 80;
+        int stockW = compact ? 50 : 90;
+        int actionsW = canManage ? (compact ? s(56) + s(70) + s(62) + s(6)*2 : 210) : (compact ? s(56)*2 + s(6) : 130);
+
         FlowLayout colHeader = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         colHeader.surface(Surface.flat(0xFF172433));
         colHeader.padding(Insets.of(4));
         colHeader.gap(8);
-        colHeader.child(cellLabel("ITEM", 250, 0xFF6D8299));
-        colHeader.child(cellLabel("BUY", 80, 0xFF6D8299));
-        colHeader.child(cellLabel("SELL", 80, 0xFF6D8299));
-        colHeader.child(cellLabel("STOCK", 90, 0xFF6D8299));
+        colHeader.child(cellLabel("ITEM", itemCellW, 0xFF6D8299));
+        colHeader.child(cellLabel("BUY", priceW, 0xFF6D8299));
+        colHeader.child(cellLabel("SELL", priceW, 0xFF6D8299));
+        colHeader.child(cellLabel("STOCK", stockW, 0xFF6D8299));
         colHeader.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
-        colHeader.child(cellLabelRight("ACTIONS", canManage ? 210 : 130, 0xFF6D8299));
+        colHeader.child(cellLabelRight("ACTIONS", actionsW, 0xFF6D8299));
         body.child(colHeader);
 
         int start = this.menu.getPage() * listingsPerPage;
@@ -414,44 +414,42 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
 
     private FlowLayout buildListingRow(ShopListing listing, int index, boolean canManage, boolean adminShop) {
         int bg = (index % 2 == 0) ? 0xFF1A2A3A : 0xFF1C2D40;
-        FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(s(52)));
+        FlowLayout row = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(52));
         row.surface(Surface.flat(bg));
-        row.padding(Insets.of(s(4)));
+        row.padding(Insets.of(4));
         row.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
-        row.gap(s(8));
+        row.gap(8);
 
-        int itemCellW = compact ? 160 : 250;
-        FlowLayout itemCell = Containers.horizontalFlow(Sizing.fixed(itemCellW), Sizing.content());
+        FlowLayout itemCell = Containers.horizontalFlow(Sizing.fixed(250), Sizing.content());
         itemCell.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
-        itemCell.gap(s(6));
+        itemCell.gap(6);
         itemCell.child(Components.item(listing.itemStack().copyWithCount(1)).showOverlay(true).setTooltipFromStack(true));
         FlowLayout itemText = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         itemText.gap(1);
         itemText.child(tint(listing.itemStack().getHoverName().getString(), 0xFFE4EBF4));
-        if (!compact) itemText.child(tint(listing.itemStack().getItem().toString(), 0xFF6F849A));
+        itemText.child(tint(listing.itemStack().getItem().toString(), 0xFF6F849A));
         itemCell.child(itemText);
         row.child(itemCell);
 
-        int priceW = compact ? 60 : 80;
-        row.child(priceCell(listing.priceBuy(), listing.perOp(), 0xFF8EDB84, priceW));
-        row.child(priceCell(listing.priceSell(), listing.perOp(), 0xFFB899F2, priceW));
+        row.child(priceCell(listing.priceBuy(), listing.perOp(), 0xFF8EDB84, 80));
+        row.child(priceCell(listing.priceSell(), listing.perOp(), 0xFFB899F2, 80));
 
         String stockText = adminShop ? "∞" : (listing.stock() == null ? "∞" : String.format("%,d", listing.stock()));
         int stockColor = adminShop ? 0xFFB899F2 : 0xFFD0DCEC;
-        row.child(cellLabel(stockText, compact ? 50 : 90, stockColor));
+        row.child(cellLabel(stockText, 90, stockColor));
 
         row.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
 
         FlowLayout actions = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
-        actions.gap(s(6));
+        actions.gap(6);
 
         if (canManage) {
-            actions.child(smallButton("EDIT", s(56), s(24), 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openEditDialog(listing)));
+            actions.child(smallButton("EDIT", 56, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openEditDialog(listing)));
             if (!adminShop) {
-                actions.child(smallButton("RESTOCK", s(70), s(24), 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openRestockDialog(listing)));
+                actions.child(smallButton("RESTOCK", 70, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openRestockDialog(listing)));
             }
-            actions.child(smallButton("REMOVE", s(62), s(24), 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F, b -> openRemoveConfirmDialog(listing)));
+            actions.child(smallButton("REMOVE", 62, 24, 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F, b -> openRemoveConfirmDialog(listing)));
         } else {
             if (listing.priceBuy() != null)
                 actions.child(smallButton("BUY", s(56), s(24), 0xFF1A2E1A, 0xFF244A24, 0xFF3A7A3A, b -> ClientPlayNetworking.send(new BuyItemC2SPacket(listing.id(), listing.perOp()))));
@@ -468,15 +466,15 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     // ─── Footer ──────────────────────────────────────────────────────────────
 
     private FlowLayout buildFooter() {
-        FlowLayout footer = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(s(58)));
+        FlowLayout footer = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(58));
         footer.surface(Surface.flat(0xFF0B141E).and(Surface.outline(0xFF1F3042)));
-        footer.padding(Insets.of(s(12)));
+        footer.padding(Insets.of(12));
         footer.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
 
-        this.prevButton = smallButton("◀ PREV", s(78), s(30), 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
+        this.prevButton = smallButton("◀ PREV", 78, 30, 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
         this.prevButton.onPress(b -> { this.menu.setPage(Math.max(0, this.menu.getPage() - 1)); refreshUi(true); });
 
-        this.nextButton = smallButton("NEXT ▶", s(78), s(30), 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
+        this.nextButton = smallButton("NEXT ▶", 78, 30, 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
         this.nextButton.onPress(b -> { this.menu.setPage(this.menu.getPage() + 1); refreshUi(true); });
 
         FlowLayout center = Containers.horizontalFlow(Sizing.expand(), Sizing.content());
