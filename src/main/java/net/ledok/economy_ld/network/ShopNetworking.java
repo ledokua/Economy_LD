@@ -12,6 +12,7 @@ import net.ledok.economy_ld.network.packet.c2s.RemoveListingC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.RestockListingC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.SellItemC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.UpdateListingC2SPacket;
+import net.ledok.economy_ld.network.packet.s2c.ShopActionResultS2CPacket;
 import net.ledok.economy_ld.network.packet.s2c.ShopListingsSyncS2CPacket;
 import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
 import net.minecraft.network.chat.Component;
@@ -28,6 +29,7 @@ public final class ShopNetworking {
 
     public static void registerPayloadTypes() {
         PayloadTypeRegistry.playS2C().register(ShopListingsSyncS2CPacket.TYPE, ShopListingsSyncS2CPacket.CODEC);
+        PayloadTypeRegistry.playS2C().register(ShopActionResultS2CPacket.TYPE, ShopActionResultS2CPacket.CODEC);
         PayloadTypeRegistry.playC2S().register(BuyItemC2SPacket.TYPE, BuyItemC2SPacket.CODEC);
         PayloadTypeRegistry.playC2S().register(SellItemC2SPacket.TYPE, SellItemC2SPacket.CODEC);
         PayloadTypeRegistry.playC2S().register(AddListingC2SPacket.TYPE, AddListingC2SPacket.CODEC);
@@ -47,17 +49,54 @@ public final class ShopNetworking {
                     return;
                 }
                 listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing -> {
-                    EconomyManager.getInstance().buyItem(listing.id(), context.player().getUUID(), context.player().getName().getString(), Math.max(1, payload.quantity()))
+                    int quantity = Math.max(1, payload.quantity());
+                    if (listing.stock() != null && listing.stock() < quantity) {
+                        context.server().execute(() -> sendActionResult(context.player(), new ShopActionResultS2CPacket(
+                                ShopActionResultS2CPacket.ActionType.OUT_OF_STOCK,
+                                listing.itemStack().getHoverName().getString(),
+                                quantity,
+                                listing.priceBuy() == null ? 0L : listing.priceBuy(),
+                                0L
+                        )));
+                        return;
+                    }
+                    EconomyManager.getInstance().buyItem(listing.id(), context.player().getUUID(), context.player().getName().getString(), quantity)
                             .whenComplete((success, err2) -> context.server().execute(() -> {
-                                if (err2 != null || !Boolean.TRUE.equals(success)) {
+                                if (err2 != null) {
                                     return;
                                 }
-                                ItemStack toGive = listing.itemStack().copyWithCount(Math.max(1, payload.quantity()));
-                                boolean added = context.player().getInventory().add(toGive);
-                                if (!added && !toGive.isEmpty()) {
-                                    context.player().drop(toGive, false);
+                                if (Boolean.TRUE.equals(success)) {
+                                    ItemStack toGive = listing.itemStack().copyWithCount(quantity);
+                                    boolean added = context.player().getInventory().add(toGive);
+                                    if (!added && !toGive.isEmpty()) {
+                                        context.player().drop(toGive, false);
+                                    }
+                                    sendActionResult(context.player(), new ShopActionResultS2CPacket(
+                                            ShopActionResultS2CPacket.ActionType.BOUGHT,
+                                            listing.itemStack().getHoverName().getString(),
+                                            quantity,
+                                            listing.priceBuy() == null ? 0L : listing.priceBuy(),
+                                            0L
+                                    ));
+                                    syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+                                    return;
                                 }
-                                syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+
+                                EconomyManager.getInstance().getBalance(context.player().getUUID(), context.player().getName().getString())
+                                        .whenComplete((balance, balanceError) -> context.server().execute(() -> {
+                                            long currentBalance = balanceError == null && balance != null ? balance : 0L;
+                                            ShopActionResultS2CPacket.ActionType type = (listing.stock() != null && listing.stock() < quantity)
+                                                    ? ShopActionResultS2CPacket.ActionType.OUT_OF_STOCK
+                                                    : ShopActionResultS2CPacket.ActionType.INSUFFICIENT_FUNDS;
+                                            sendActionResult(context.player(), new ShopActionResultS2CPacket(
+                                                    type,
+                                                    listing.itemStack().getHoverName().getString(),
+                                                    quantity,
+                                                    listing.priceBuy() == null ? 0L : listing.priceBuy(),
+                                                    currentBalance
+                                            ));
+                                            syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
+                                        }));
                             }));
                 });
             });
@@ -92,6 +131,13 @@ public final class ShopNetworking {
                                                 context.player().getInventory().add(rollback);
                                                 return;
                                             }
+                                            sendActionResult(context.player(), new ShopActionResultS2CPacket(
+                                                    ShopActionResultS2CPacket.ActionType.SOLD,
+                                                    listing.itemStack().getHoverName().getString(),
+                                                    quantity,
+                                                    listing.priceSell() == null ? 0L : listing.priceSell(),
+                                                    0L
+                                            ));
                                             syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
                                         }));
                             });
@@ -230,6 +276,13 @@ public final class ShopNetworking {
                                     context.player().getInventory().add(listing.itemStack().copyWithCount(quantity));
                                     return;
                                 }
+                                sendActionResult(context.player(), new ShopActionResultS2CPacket(
+                                        ShopActionResultS2CPacket.ActionType.RESTOCKED,
+                                        listing.itemStack().getHoverName().getString(),
+                                        quantity,
+                                        0L,
+                                        0L
+                                ));
                                 syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
                             }));
                 }
@@ -241,10 +294,16 @@ public final class ShopNetworking {
     public static void registerClientReceivers() {
         ClientPlayNetworking.registerGlobalReceiver(ShopListingsSyncS2CPacket.TYPE, (payload, context) ->
                 ShopClientState.setListings(payload.shopId(), payload.adminShop(), payload.ownerOrOperator(), payload.ownerLabel(), payload.openerBalance(), payload.listings()));
+        ClientPlayNetworking.registerGlobalReceiver(ShopActionResultS2CPacket.TYPE, (payload, context) ->
+                ShopClientState.setLastActionResult(payload));
     }
 
     public static void sendListingsSync(ServerPlayer player, ShopListingsSyncS2CPacket payload) {
         ServerPlayNetworking.send(player, payload);
+    }
+
+    private static void sendActionResult(ServerPlayer player, ShopActionResultS2CPacket packet) {
+        ServerPlayNetworking.send(player, packet);
     }
 
     public static void syncShop(ServerPlayer player, UUID shopId, boolean adminShop, boolean ownerOrOperator) {

@@ -1,5 +1,6 @@
 package net.ledok.economy_ld.client.screen;
 
+import net.ledok.economy_ld.network.packet.s2c.ShopActionResultS2CPacket;
 import net.ledok.economy_ld.shop.ShopListing;
 
 import java.util.ArrayList;
@@ -19,6 +20,8 @@ public final class ShopClientState {
     private static final Map<UUID, Long> OPEN_BALANCE_BY_SHOP = new ConcurrentHashMap<>();
     private static final AtomicReference<UUID> LAST_SHOP_ID = new AtomicReference<>(new UUID(0L, 0L));
     private static final AtomicInteger SYNC_VERSION = new AtomicInteger(0);
+    private static final AtomicReference<ShopActionResultS2CPacket> LAST_ACTION_RESULT = new AtomicReference<>(null);
+    private static final AtomicInteger ACTION_VERSION = new AtomicInteger(0);
 
     private ShopClientState() {
     }
@@ -35,6 +38,19 @@ public final class ShopClientState {
 
     public static int getSyncVersion() {
         return SYNC_VERSION.get();
+    }
+
+    public static void setLastActionResult(ShopActionResultS2CPacket result) {
+        LAST_ACTION_RESULT.set(result);
+        ACTION_VERSION.incrementAndGet();
+    }
+
+    public static ShopActionResultS2CPacket getLastActionResult() {
+        return LAST_ACTION_RESULT.get();
+    }
+
+    public static int getActionVersion() {
+        return ACTION_VERSION.get();
     }
 
     public static List<ShopListing> getListings(UUID shopId) {

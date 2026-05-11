@@ -544,7 +544,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                         }
                     }
 
-                    long total = priceSell * Math.max(1, quantity);
+                    long total = priceSell;
                     boolean adminShop = isAdminShopForListing(conn, listingId);
                     if (adminShop) {
                         if (buyCap == null || buyCap < quantity) {
