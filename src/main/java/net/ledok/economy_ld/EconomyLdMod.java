@@ -3,6 +3,7 @@ package net.ledok.economy_ld;
 import net.fabricmc.api.ModInitializer;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
+import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents;
 import net.ledok.economy_ld.block.ModBlocks;
 import net.ledok.economy_ld.command.BalanceCommand;
 import net.ledok.economy_ld.command.EcoAdminCommand;
@@ -32,6 +33,9 @@ public class EconomyLdMod implements ModInitializer {
         });
 
         ServerLifecycleEvents.SERVER_STARTED.register(server -> ServerRegistryAccess.set(server.registryAccess()));
+
+        ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->
+                EconomyManager.getInstance().clearAdminMode(handler.player.getUUID()));
 
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             ServerRegistryAccess.clear();

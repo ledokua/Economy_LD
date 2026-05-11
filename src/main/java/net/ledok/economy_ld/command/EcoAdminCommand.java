@@ -3,6 +3,7 @@ package net.ledok.economy_ld.command;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.LongArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.util.CurrencyFormatter;
 import net.minecraft.commands.CommandSourceStack;
@@ -15,6 +16,18 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 public final class EcoAdminCommand {
+    private static final SuggestionProvider<CommandSourceStack> KNOWN_PLAYERS = (context, builder) -> {
+        context.getSource().getServer().getPlayerList().getPlayers()
+                .forEach(player -> builder.suggest(player.getName().getString()));
+        return EconomyManager.getInstance().getAllUsernames()
+                .handle((names, error) -> {
+                    if (error == null && names != null) {
+                        names.forEach(builder::suggest);
+                    }
+                    return builder.build();
+                });
+    };
+
     private EcoAdminCommand() {
     }
 
@@ -22,7 +35,8 @@ public final class EcoAdminCommand {
         dispatcher.register(Commands.literal("eco")
                 .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("give")
-                        .then(Commands.argument("player", StringArgumentType.word())
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .suggests(KNOWN_PLAYERS)
                                 .then(Commands.argument("amount", LongArgumentType.longArg(1))
                                         .executes(ctx -> give(
                                                 ctx.getSource(),
@@ -30,7 +44,8 @@ public final class EcoAdminCommand {
                                                 LongArgumentType.getLong(ctx, "amount")
                                         )))))
                 .then(Commands.literal("take")
-                        .then(Commands.argument("player", StringArgumentType.word())
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .suggests(KNOWN_PLAYERS)
                                 .then(Commands.argument("amount", LongArgumentType.longArg(1))
                                         .executes(ctx -> take(
                                                 ctx.getSource(),
@@ -38,7 +53,8 @@ public final class EcoAdminCommand {
                                                 LongArgumentType.getLong(ctx, "amount")
                                         )))))
                 .then(Commands.literal("set")
-                        .then(Commands.argument("player", StringArgumentType.word())
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .suggests(KNOWN_PLAYERS)
                                 .then(Commands.argument("amount", LongArgumentType.longArg(0))
                                         .executes(ctx -> set(
                                                 ctx.getSource(),
@@ -46,11 +62,22 @@ public final class EcoAdminCommand {
                                                 LongArgumentType.getLong(ctx, "amount")
                                         )))))
                 .then(Commands.literal("balance")
-                        .then(Commands.argument("player", StringArgumentType.word())
+                        .then(Commands.argument("player", StringArgumentType.string())
+                                .suggests(KNOWN_PLAYERS)
                                 .executes(ctx -> balance(
                                         ctx.getSource(),
                                         StringArgumentType.getString(ctx, "player")
                                 ))))
+                .then(Commands.literal("adminmode")
+                        .requires(source -> source.hasPermission(2))
+                        .executes(context -> {
+                            ServerPlayer player = context.getSource().getPlayerOrException();
+                            boolean nowOn = EconomyManager.getInstance().toggleAdminMode(player.getUUID());
+                            context.getSource().sendSuccess(() -> Component.literal(nowOn
+                                    ? "Admin mode: ON - you can now manage admin shops."
+                                    : "Admin mode: OFF - back to buyer view."), false);
+                            return 1;
+                        }))
                 .then(Commands.literal("reload")
                         .executes(ctx -> reload(ctx.getSource()))));
     }

@@ -15,7 +15,10 @@ import java.util.UUID;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.List;
+import java.util.Set;
+import java.util.Collections;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -24,6 +27,7 @@ public final class EconomyManager {
 
     private final Logger logger;
     private final ExecutorService dbExecutor;
+    private final Set<UUID> adminModeActive = Collections.newSetFromMap(new ConcurrentHashMap<>());
     private EconomyConfig config;
     private EconomyDatabase database;
 
@@ -83,6 +87,28 @@ public final class EconomyManager {
 
     public CompletableFuture<Optional<String>> getUsernameByUuid(UUID uuid) {
         return requireDatabase().getUsernameByUuid(uuid);
+    }
+
+    public CompletableFuture<List<String>> getAllUsernames() {
+        return requireDatabase().getAllUsernames();
+    }
+
+    public boolean toggleAdminMode(UUID uuid) {
+        if (adminModeActive.contains(uuid)) {
+            adminModeActive.remove(uuid);
+            return false;
+        } else {
+            adminModeActive.add(uuid);
+            return true;
+        }
+    }
+
+    public boolean isAdminModeActive(UUID uuid) {
+        return adminModeActive.contains(uuid);
+    }
+
+    public void clearAdminMode(UUID uuid) {
+        adminModeActive.remove(uuid);
     }
 
     public CompletableFuture<Void> give(UUID uuid, String username, long amount) {

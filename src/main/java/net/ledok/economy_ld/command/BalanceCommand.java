@@ -1,11 +1,11 @@
 package net.ledok.economy_ld.command;
 
 import com.mojang.brigadier.CommandDispatcher;
-import com.mojang.brigadier.arguments.StringArgumentType;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.util.CurrencyFormatter;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -16,10 +16,10 @@ public final class BalanceCommand {
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("balance")
                 .executes(ctx -> executeSelf(ctx.getSource()))
-                .then(Commands.argument("player", StringArgumentType.word())
+                .then(Commands.argument("player", EntityArgument.player())
                         .executes(ctx -> executeOther(
                                 ctx.getSource(),
-                                StringArgumentType.getString(ctx, "player")
+                                EntityArgument.getPlayer(ctx, "player")
                         ))));
     }
 
@@ -43,19 +43,15 @@ public final class BalanceCommand {
         return 1;
     }
 
-    private static int executeOther(CommandSourceStack source, String username) {
-        EconomyManager.getInstance().getBalanceByUsername(username)
-                .whenComplete((balanceOpt, error) -> source.getServer().execute(() -> {
+    private static int executeOther(CommandSourceStack source, ServerPlayer target) {
+        EconomyManager.getInstance().getBalance(target.getUUID(), target.getName().getString())
+                .whenComplete((balance, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Failed to read balance for " + username + "."));
-                        return;
-                    }
-                    if (balanceOpt.isEmpty()) {
-                        source.sendFailure(Component.literal("Player '" + username + "' has no wallet record."));
+                        source.sendFailure(Component.literal("Failed to read balance for " + target.getName().getString() + "."));
                         return;
                     }
                     source.sendSuccess(() -> Component.literal(
-                            username + "'s balance: " + CurrencyFormatter.format(balanceOpt.getAsLong())
+                            target.getName().getString() + "'s balance: " + CurrencyFormatter.format(balance)
                     ), false);
                 }));
         return 1;

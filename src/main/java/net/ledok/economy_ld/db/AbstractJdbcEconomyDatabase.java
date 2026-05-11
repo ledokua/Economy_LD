@@ -165,6 +165,26 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     }
 
     @Override
+    public CompletableFuture<List<String>> getAllUsernames() {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT username FROM wallets ORDER BY username ASC");
+                 ResultSet rs = ps.executeQuery()) {
+                List<String> usernames = new ArrayList<>();
+                while (rs.next()) {
+                    String username = rs.getString("username");
+                    if (username != null && !username.isBlank()) {
+                        usernames.add(username);
+                    }
+                }
+                return usernames;
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to load known usernames", e);
+            }
+        }, executor);
+    }
+
+    @Override
     public CompletableFuture<Void> setBalance(UUID uuid, String username, long balance) {
         return CompletableFuture.runAsync(() -> {
             try (Connection conn = connection()) {

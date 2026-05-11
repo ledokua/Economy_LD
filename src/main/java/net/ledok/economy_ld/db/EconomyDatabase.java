@@ -25,6 +25,8 @@ public interface EconomyDatabase {
 
     CompletableFuture<Optional<String>> getUsernameByUuid(UUID uuid);
 
+    CompletableFuture<List<String>> getAllUsernames();
+
     CompletableFuture<Void> setBalance(UUID uuid, String username, long balance);
 
     CompletableFuture<Void> addBalance(UUID uuid, String username, long delta);

@@ -1,6 +1,7 @@
 package net.ledok.economy_ld.block;
 
 import com.mojang.serialization.MapCodec;
+import net.ledok.economy_ld.manager.EconomyManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -43,7 +44,8 @@ public class AdminShopBlock extends ShopBlock {
             ensureShopRecord(level, pos, shopBe, serverPlayer, true, false);
             UUID shopId = shopBe.getShopId();
             boolean isAdminShop = shopBe.isAdminShop();
-            boolean ownerOrOperator = serverPlayer.hasPermissions(2);
+            boolean ownerOrOperator = serverPlayer.hasPermissions(2)
+                    && EconomyManager.getInstance().isAdminModeActive(serverPlayer.getUUID());
             if (shopId == null) {
                 return InteractionResult.CONSUME;
             }

@@ -71,9 +71,7 @@ public class ShopBlock extends BaseEntityBlock {
         ensureShopRecord(level, pos, shopBe, serverPlayer, false, false);
         UUID shopId = shopBe.getShopId();
         boolean isAdminShop = shopBe.isAdminShop();
-        boolean ownerOrOperator = isAdminShop
-                ? serverPlayer.hasPermissions(2)
-                : serverPlayer.getUUID().equals(shopBe.getOwnerUuid()) || serverPlayer.hasPermissions(2);
+        boolean ownerOrOperator = serverPlayer.getUUID().equals(shopBe.getOwnerUuid());
 
         if (shopId == null) {
             return InteractionResult.CONSUME;
