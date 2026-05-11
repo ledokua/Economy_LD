@@ -47,8 +47,9 @@ public class AdminShopBlock extends ShopBlock {
             if (shopId == null) {
                 return InteractionResult.CONSUME;
             }
+            BlockPos menuPos = pos.immutable();
             serverPlayer.openMenu(new SimpleMenuProvider(
-                    (syncId, inventory, p) -> new ShopBrowseScreenHandler(syncId, inventory, shopId, isAdminShop, ownerOrOperator),
+                    (syncId, inventory, p) -> new ShopBrowseScreenHandler(syncId, inventory, shopId, isAdminShop, ownerOrOperator, menuPos),
                     Component.empty()
             ));
             ShopNetworking.syncShop(serverPlayer, shopId, isAdminShop, ownerOrOperator);

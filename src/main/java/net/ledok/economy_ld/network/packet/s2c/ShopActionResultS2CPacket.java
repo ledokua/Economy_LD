@@ -49,6 +49,7 @@ public record ShopActionResultS2CPacket(
         SOLD,
         RESTOCKED,
         INSUFFICIENT_FUNDS,
+        SHOP_FULL,
         OUT_OF_STOCK
     }
 }

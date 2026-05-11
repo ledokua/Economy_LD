@@ -1,14 +1,17 @@
 package net.ledok.economy_ld.block;
 
 import com.mojang.serialization.MapCodec;
+import net.ledok.economy_ld.EconomyLdMod;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.network.ShopNetworking;
+import net.ledok.economy_ld.shop.ShopListing;
 import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
@@ -21,6 +24,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.SimpleMenuProvider;
 import net.minecraft.world.phys.BlockHitResult;
 
+import java.util.List;
 import java.util.UUID;
 
 public class ShopBlock extends BaseEntityBlock {
@@ -74,8 +78,9 @@ public class ShopBlock extends BaseEntityBlock {
         if (shopId == null) {
             return InteractionResult.CONSUME;
         }
+        BlockPos menuPos = pos.immutable();
         serverPlayer.openMenu(new SimpleMenuProvider(
-                (syncId, inventory, p) -> new ShopBrowseScreenHandler(syncId, inventory, shopId, isAdminShop, ownerOrOperator),
+                (syncId, inventory, p) -> new ShopBrowseScreenHandler(syncId, inventory, shopId, isAdminShop, ownerOrOperator, menuPos),
                 Component.empty()
         ));
         ShopNetworking.syncShop(serverPlayer, shopId, isAdminShop, ownerOrOperator);
@@ -104,12 +109,61 @@ public class ShopBlock extends BaseEntityBlock {
         if (!level.isClientSide()) {
             BlockEntity be = level.getBlockEntity(pos);
             if (be instanceof ShopBlockEntity shopBe && shopBe.getShopId() != null) {
-                EconomyManager.getInstance().deleteShop(shopBe.getShopId())
-                        .whenComplete((ignored, error) -> {});
+                UUID shopId = shopBe.getShopId();
+                UUID ownerUuid = shopBe.getOwnerUuid();
+                EconomyManager manager = EconomyManager.getInstance();
+                manager.getListings(shopId).whenComplete((listings, error) -> {
+                    if (level.getServer() == null) {
+                        manager.deleteShop(shopId).whenComplete((ignored, deleteError) -> {});
+                        return;
+                    }
+                    level.getServer().execute(() -> {
+                        if (error != null) {
+                            EconomyLdMod.LOGGER.warn("Failed to load listings while removing shop {}", shopId, error);
+                        }
+                        returnStockToOwner(level, pos, ownerUuid, error == null && listings != null ? listings : List.of());
+                        manager.deleteShop(shopId).whenComplete((ignored, deleteError) -> {
+                            if (deleteError != null) {
+                                EconomyLdMod.LOGGER.warn("Failed to delete shop {} after block removal", shopId, deleteError);
+                            }
+                        });
+                    });
+                });
             }
         }
 
         super.onRemove(state, level, pos, newState, movedByPiston);
+    }
+
+    private void returnStockToOwner(Level level, BlockPos pos, UUID ownerUuid, List<ShopListing> listings) {
+        if (ownerUuid == null || level.getServer() == null) {
+            return;
+        }
+        ServerPlayer owner = level.getServer().getPlayerList().getPlayer(ownerUuid);
+        for (ShopListing listing : listings) {
+            if (listing.stock() == null || listing.stock() <= 0) {
+                continue;
+            }
+            String itemName = listing.itemStack().getHoverName().getString();
+            long remaining = listing.stock();
+            if (owner == null) {
+                EconomyLdMod.LOGGER.warn(
+                        "Shop removed but owner {} is offline — {} × {} lost",
+                        ownerUuid, listing.stock(), itemName
+                );
+                continue;
+            }
+            int maxStack = Math.max(1, listing.itemStack().getMaxStackSize());
+            while (remaining > 0) {
+                int toGiveCount = (int) Math.min(remaining, maxStack);
+                ItemStack giveStack = listing.itemStack().copyWithCount(toGiveCount);
+                owner.getInventory().add(giveStack);
+                if (!giveStack.isEmpty()) {
+                    level.addFreshEntity(new ItemEntity(level, pos.getX() + 0.5, pos.getY() + 0.5, pos.getZ() + 0.5, giveStack));
+                }
+                remaining -= toGiveCount;
+            }
+        }
     }
 
     protected void ensureShopRecord(

@@ -130,6 +130,13 @@ public final class ShopNetworking {
                                             if (err2 != null || !Boolean.TRUE.equals(success)) {
                                                 ItemStack rollback = listing.itemStack().copyWithCount(quantity);
                                                 context.player().getInventory().add(rollback);
+                                                sendActionResult(context.player(), new ShopActionResultS2CPacket(
+                                                        ShopActionResultS2CPacket.ActionType.SHOP_FULL,
+                                                        listing.itemStack().getHoverName().getString(),
+                                                        quantity,
+                                                        0L,
+                                                        0L
+                                                ));
                                                 return;
                                             }
                                             sendActionResult(context.player(), new ShopActionResultS2CPacket(
@@ -241,8 +248,8 @@ public final class ShopNetworking {
                                                 if (owner != null) {
                                                     giveOrDrop(owner, listing.itemStack(), stock);
                                                 } else {
-                                                    EconomyLdMod.LOGGER.warn("Could not return {} items from listing {}: owner {} is offline",
-                                                            stock, listing.id(), shopOpt.get().ownerUuid());
+                                                    EconomyLdMod.LOGGER.warn("Shop listing removed but owner {} is offline — {} x {} stock was lost",
+                                                            shopOpt.get().ownerUuid(), stock, listing.itemStack().getHoverName().getString());
                                                 }
                                             }
                                             removeAndSync.run();

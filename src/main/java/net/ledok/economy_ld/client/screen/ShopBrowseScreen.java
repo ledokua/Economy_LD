@@ -132,6 +132,10 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         mainLayer.child(shell);
         rootComponent.child(mainLayer);
 
+        // Sync version trackers to current state so stale toasts don't fire on open
+        this.lastSyncVersion = ShopClientState.getSyncVersion();
+        this.lastActionVersion = ShopClientState.getActionVersion();
+
         refreshUi(true);
     }
 
@@ -410,7 +414,9 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
 
         if (canManage) {
             actions.child(smallButton("EDIT", 56, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openEditDialog(listing)));
-            actions.child(smallButton("RESTOCK", 70, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openRestockDialog(listing)));
+            if (!adminShop) {
+                actions.child(smallButton("RESTOCK", 70, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openRestockDialog(listing)));
+            }
             actions.child(smallButton("REMOVE", 62, 24, 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F, b -> openRemoveConfirmDialog(listing)));
         } else {
             if (listing.priceBuy() != null)
@@ -1171,6 +1177,11 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
                 sideColor = 0xFFE05050; titleColor = 0xFFE88080;
                 title = "OUT OF STOCK";
                 body = result.itemName() + " has no stock available.";
+            }
+            case SHOP_FULL -> {
+                sideColor = 0xFFE05050; titleColor = 0xFFE88080;
+                title = "SHOP IS FULL";
+                body = "Shop has enough of " + result.itemName() + ".";
             }
             default -> { return; }
         }
