@@ -43,7 +43,8 @@ import java.util.stream.Collectors;
 
 public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrowseScreenHandler> {
     private static final UUID ZERO_UUID = new UUID(0L, 0L);
-    private static final int LISTINGS_PER_PAGE = 5;
+    // Computed dynamically in build() based on available height
+    private int listingsPerPage = 5;
 
     // Layout refs
     private LabelComponent ownerLabel;
@@ -114,7 +115,15 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         mainLayer.padding(Insets.of(16));
         mainLayer.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
 
-        FlowLayout shell = Containers.verticalFlow(Sizing.fill(98), Sizing.fixed(446));
+        int shellW = Math.min(this.width - 32, 980);
+        int shellH = Math.min(this.height - 32, 520);
+
+        // Header=64, colHeader=~28, footer=58, padding=16, searchBar=36 (optional)
+        int reservedH = 64 + 28 + 58 + 24;
+        int rowH = 52 + 4; // row height + gap
+        this.listingsPerPage = Math.max(3, (shellH - reservedH) / rowH);
+
+        FlowLayout shell = Containers.verticalFlow(Sizing.fixed(shellW), Sizing.fixed(shellH));
         shell.surface(Surface.flat(0xFF0D151F).and(Surface.outline(0xFF2F4155)));
         shell.padding(Insets.of(1));
 
@@ -163,9 +172,25 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         var stream = listings.stream();
         if (!searchQuery.isBlank()) {
             String q = searchQuery.toLowerCase(Locale.ROOT);
-            stream = stream.filter(l ->
-                    l.itemStack().getHoverName().getString().toLowerCase(Locale.ROOT).contains(q) ||
-                            l.itemStack().getItem().toString().toLowerCase(Locale.ROOT).contains(q));
+            if (q.startsWith("#")) {
+                String tagQuery = q.substring(1);
+                stream = stream.filter(l -> l.itemStack().getTags().anyMatch(tag -> {
+                    String tagPath = tag.location().getPath().toLowerCase(Locale.ROOT);
+                    String tagFull = tag.location().toString().toLowerCase(Locale.ROOT);
+                    return tagPath.contains(tagQuery) || tagFull.contains(tagQuery);
+                }));
+            } else if (q.startsWith("@")) {
+                String nsQuery = q.substring(1);
+                stream = stream.filter(l -> {
+                    String itemId = l.itemStack().getItem().toString().toLowerCase(Locale.ROOT);
+                    String namespace = itemId.contains(":") ? itemId.split(":")[0] : itemId;
+                    return namespace.contains(nsQuery);
+                });
+            } else {
+                stream = stream.filter(l ->
+                        l.itemStack().getHoverName().getString().toLowerCase(Locale.ROOT).contains(q) ||
+                                l.itemStack().getItem().toString().toLowerCase(Locale.ROOT).contains(q));
+            }
         }
         stream = switch (sortMode) {
             case NAME -> stream.sorted(Comparator.comparing(l -> l.itemStack().getHoverName().getString()));
@@ -209,6 +234,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         bar.child(tint(">", 0xFF4A5F78));
         TextBoxComponent field = Components.textBox(Sizing.expand(), searchQuery);
         field.setMaxLength(64);
+        field.setSuggestion("name  |  @mod  |  #tag");
         field.onChanged().subscribe(v -> {
             searchQuery = v;
             menu.setPage(0);
@@ -234,7 +260,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         String owner = adminShop ? "Server" : ShopClientState.ownerLabel(shopId);
         long balance = ShopClientState.openerBalance(shopId);
 
-        int totalPages = Math.max(1, (listings.size() + LISTINGS_PER_PAGE - 1) / LISTINGS_PER_PAGE);
+        int totalPages = Math.max(1, (listings.size() + listingsPerPage - 1) / listingsPerPage);
         if (this.menu.getPage() >= totalPages) this.menu.setPage(totalPages - 1);
         int currentPage = this.menu.getPage() + 1;
         int currentPageIndex = this.menu.getPage();
@@ -372,8 +398,8 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         colHeader.child(cellLabelRight("ACTIONS", canManage ? 210 : 130, 0xFF6D8299));
         body.child(colHeader);
 
-        int start = this.menu.getPage() * LISTINGS_PER_PAGE;
-        int end = Math.min(start + LISTINGS_PER_PAGE, listings.size());
+        int start = this.menu.getPage() * listingsPerPage;
+        int end = Math.min(start + listingsPerPage, listings.size());
         for (int i = start; i < end; i++)
             body.child(buildListingRow(listings.get(i), i, canManage, adminShop));
 
