@@ -18,6 +18,7 @@ import io.wispforest.owo.ui.core.OwoUIAdapter;
 import io.wispforest.owo.ui.core.Sizing;
 import io.wispforest.owo.ui.core.Surface;
 import io.wispforest.owo.ui.core.VerticalAlignment;
+import net.ledok.economy_ld.network.packet.s2c.ShopActionResultS2CPacket;
 import net.ledok.economy_ld.network.packet.c2s.AddListingC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.BuyItemC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.RemoveListingC2SPacket;
@@ -71,6 +72,9 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     private String lastSearchQuery = null;
     private SortMode lastSortMode = null;
     private int lastSyncVersion = -1;
+    private int lastActionVersion = -1;
+    private OverlayContainer<FlowLayout> toastOverlay = null;
+    private long toastExpiryMs = 0;
 
     private enum SortMode {
         NAME, BUY_PRICE, SELL_PRICE, STOCK;
@@ -133,6 +137,18 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     @Override
     protected void containerTick() {
         super.containerTick();
+        // Expire toast
+        if (this.toastOverlay != null && System.currentTimeMillis() > this.toastExpiryMs) {
+            this.toastOverlay.remove();
+            this.toastOverlay = null;
+        }
+        // Show new toast if action version changed
+        int currentActionVersion = ShopClientState.getActionVersion();
+        if (currentActionVersion != lastActionVersion) {
+            lastActionVersion = currentActionVersion;
+            ShopActionResultS2CPacket result = ShopClientState.getLastActionResult();
+            if (result != null) showToast(result);
+        }
         refreshUi(false);
     }
 
@@ -394,7 +410,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         if (canManage) {
             actions.child(smallButton("EDIT", 56, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openEditDialog(listing)));
             actions.child(smallButton("RESTOCK", 70, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openRestockDialog(listing)));
-            actions.child(smallButton("REMOVE", 62, 24, 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F, b -> ClientPlayNetworking.send(new RemoveListingC2SPacket(listing.id()))));
+            actions.child(smallButton("REMOVE", 62, 24, 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F, b -> openRemoveConfirmDialog(listing)));
         } else {
             if (listing.priceBuy() != null)
                 actions.child(smallButton("BUY", 56, 24, 0xFF1A2E1A, 0xFF244A24, 0xFF3A7A3A, b -> ClientPlayNetworking.send(new BuyItemC2SPacket(listing.id(), listing.perOp()))));
@@ -1043,6 +1059,143 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         label.maxWidth(width);
         label.horizontalTextAlignment(HorizontalAlignment.RIGHT);
         return label;
+    }
+
+    // ─── Remove Confirm Dialog ────────────────────────────────────────────────
+
+    private void openRemoveConfirmDialog(ShopListing listing) {
+        if (this.listingDialog != null) return;
+
+        FlowLayout panel = Containers.verticalFlow(Sizing.fixed(400), Sizing.content());
+        panel.surface(Surface.flat(0xFF111C28).and(Surface.outline(0xFF4E3030)));
+        panel.padding(Insets.of(0));
+        panel.gap(0);
+
+        // Header — red left border
+        FlowLayout head = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
+        head.surface(Surface.flat(0xFF1A1010).and((context, component) ->
+                context.fill(component.x(), component.y(), component.x() + 3, component.y() + component.height(), 0xFFE05050)));
+        head.padding(Insets.of(14, 12, 10, 16));
+        head.gap(3);
+        head.child(tint("Remove Listing", 0xFFE85050));
+        head.child(tint("STOCK WILL RETURN TO YOUR STORAGE", 0xFF8A6060));
+        panel.child(head);
+
+        // Item card
+        FlowLayout body = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
+        body.padding(Insets.of(12));
+        FlowLayout itemCard = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        itemCard.surface(Surface.flat(0xFF1E2A38).and(Surface.outline(0xFF2E3F54)));
+        itemCard.padding(Insets.of(12));
+        itemCard.gap(10);
+        itemCard.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
+        itemCard.child(Components.item(listing.itemStack().copyWithCount(1)).showOverlay(true).setTooltipFromStack(true));
+        FlowLayout itemText = Containers.verticalFlow(Sizing.expand(), Sizing.content());
+        itemText.gap(3);
+        itemText.child(tint(listing.itemStack().getHoverName().getString(), 0xFFE6EDF7));
+
+        // Summary line: "3 stock · 220 buy · 90 sell"
+        StringBuilder summary = new StringBuilder();
+        if (listing.stock() != null) summary.append(listing.stock()).append(" stock");
+        else summary.append("∞ stock");
+        if (listing.priceBuy() != null) summary.append("  ·  ").append(String.format("%,d", listing.priceBuy())).append(" buy");
+        if (listing.priceSell() != null) summary.append("  ·  ").append(String.format("%,d", listing.priceSell())).append(" sell");
+        itemText.child(tint(summary.toString(), 0xFF7A8FA8));
+        itemCard.child(itemText);
+        body.child(itemCard);
+        panel.child(body);
+
+        // Footer actions
+        FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        actions.surface(Surface.flat(0xFF0E1820));
+        actions.padding(Insets.of(10, 12, 10, 12));
+        actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
+        actions.gap(8);
+        actions.child(smallButton("CANCEL", 90, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
+
+        // Red REMOVE button
+        ButtonComponent removeBtn = Components.button(Component.literal("REMOVE"), b -> {
+            ClientPlayNetworking.send(new RemoveListingC2SPacket(listing.id()));
+            closeListingDialog();
+        });
+        removeBtn.sizing(Sizing.fixed(90), Sizing.fixed(32));
+        removeBtn.renderer((ctx, rendered, delta) -> {
+            int bg = rendered.isHoveredOrFocused() ? 0xFFB83A2A : 0xFF9A2A1C;
+            ctx.fill(rendered.getX(), rendered.getY(), rendered.getX() + rendered.getWidth(), rendered.getY() + rendered.getHeight(), bg);
+            ctx.drawRectOutline(rendered.getX(), rendered.getY(), rendered.getWidth(), rendered.getHeight(), 0xFFD04040);
+        });
+        actions.child(removeBtn);
+        panel.child(actions);
+
+        this.listingDialog = Containers.overlay(panel);
+        this.listingDialog.closeOnClick(false);
+        this.listingDialog.surface(Surface.flat(0x88000000));
+        this.listingDialog.zIndex(300);
+        this.rootLayout.child(this.listingDialog);
+    }
+
+    // ─── Toast ────────────────────────────────────────────────────────────────
+
+    private void showToast(ShopActionResultS2CPacket result) {
+        // Dismiss any existing toast immediately
+        if (this.toastOverlay != null) {
+            this.toastOverlay.remove();
+            this.toastOverlay = null;
+        }
+
+        // Determine colors and text
+        int sideColor, titleColor;
+        String title, body;
+
+        switch (result.actionType()) {
+            case BOUGHT -> {
+                sideColor = 0xFF5FC76C; titleColor = 0xFF8EDB84;
+                title = "PURCHASE CONFIRMED";
+                body = "Bought " + result.quantity() + " × " + result.itemName() + " for " + String.format("%,d", result.lcAmount()) + " LC";
+            }
+            case SOLD -> {
+                sideColor = 0xFF9C7AE8; titleColor = 0xFFB899F2;
+                title = "SALE CONFIRMED";
+                body = "Sold " + result.quantity() + " × " + result.itemName() + " for " + String.format("%,d", result.lcAmount()) + " LC";
+            }
+            case RESTOCKED -> {
+                sideColor = 0xFF5FC76C; titleColor = 0xFF8EDB84;
+                title = "RESTOCKED";
+                body = "Added " + result.quantity() + " × " + result.itemName() + " to stock";
+            }
+            case INSUFFICIENT_FUNDS -> {
+                sideColor = 0xFFE05050; titleColor = 0xFFE88080;
+                title = "INSUFFICIENT FUNDS";
+                body = "You need " + String.format("%,d", result.lcAmount()) + " LC. You have " + String.format("%,d", result.playerBalance()) + " LC.";
+            }
+            case OUT_OF_STOCK -> {
+                sideColor = 0xFFE05050; titleColor = 0xFFE88080;
+                title = "OUT OF STOCK";
+                body = result.itemName() + " has no stock available.";
+            }
+            default -> { return; }
+        }
+
+        FlowLayout toast = Containers.verticalFlow(Sizing.fixed(320), Sizing.content());
+        final int sc = sideColor;
+        toast.surface(Surface.flat(0xFF111C28).and(Surface.outline(0xFF2A3A4A)).and((ctx, comp) ->
+                ctx.fill(comp.x(), comp.y(), comp.x() + 3, comp.y() + comp.height(), sc)));
+        toast.padding(Insets.of(10, 12, 10, 16));
+        toast.gap(4);
+        toast.child(tint(title, titleColor));
+        toast.child(tint(body, 0xFFD0DCE8));
+
+        // Position: bottom-right of the shell, above footer
+        FlowLayout posWrapper = Containers.verticalFlow(Sizing.fill(100), Sizing.fill(100));
+        posWrapper.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.BOTTOM);
+        posWrapper.padding(Insets.of(0, 0, 68, 12)); // above footer (58px) + 10px gap
+        posWrapper.child(toast);
+
+        this.toastOverlay = Containers.overlay(posWrapper);
+        this.toastOverlay.closeOnClick(false);
+        this.toastOverlay.zIndex(200);
+        this.rootLayout.child(this.toastOverlay);
+        this.toastExpiryMs = System.currentTimeMillis() + 4000;
     }
 
     private void closeListingDialog() {
