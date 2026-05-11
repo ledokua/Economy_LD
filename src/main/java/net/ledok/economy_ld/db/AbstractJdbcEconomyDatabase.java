@@ -463,7 +463,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                         }
                     }
 
-                    long total = priceBuy * Math.max(1, quantity);
+                    long total = priceBuy;
                     long balance;
                     try (PreparedStatement q = conn.prepareStatement("SELECT balance FROM wallets WHERE uuid = ?")) {
                         q.setString(1, buyerUuid.toString());
