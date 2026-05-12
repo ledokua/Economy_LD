@@ -172,26 +172,30 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
     private List<ShopListing> applyFilterAndSort(List<ShopListing> listings) {
         var stream = listings.stream();
         if (!searchQuery.isBlank()) {
-            String q = searchQuery.toLowerCase(Locale.ROOT);
-            if (q.startsWith("#")) {
-                String tagQuery = q.substring(1);
-                stream = stream.filter(l -> l.itemStack().getTags().anyMatch(tag -> {
-                    String tagPath = tag.location().getPath().toLowerCase(Locale.ROOT);
-                    String tagFull = tag.location().toString().toLowerCase(Locale.ROOT);
-                    return tagPath.contains(tagQuery) || tagFull.contains(tagQuery);
-                }));
-            } else if (q.startsWith("@")) {
-                String nsQuery = q.substring(1);
-                stream = stream.filter(l -> {
-                    String itemId = l.itemStack().getItem().toString().toLowerCase(Locale.ROOT);
-                    String namespace = itemId.contains(":") ? itemId.split(":")[0] : itemId;
-                    return namespace.contains(nsQuery);
-                });
-            } else {
-                stream = stream.filter(l ->
-                        l.itemStack().getHoverName().getString().toLowerCase(Locale.ROOT).contains(q) ||
-                                l.itemStack().getItem().toString().toLowerCase(Locale.ROOT).contains(q));
-            }
+            String[] tokens = searchQuery.trim().toLowerCase(java.util.Locale.ROOT).split("\\s+");
+            stream = stream.filter(l -> {
+                for (String token : tokens) {
+                    if (token.startsWith("@")) {
+                        String ns = token.substring(1);
+                        String itemId = l.itemStack().getItem().toString().toLowerCase(java.util.Locale.ROOT);
+                        String namespace = itemId.contains(":") ? itemId.split(":")[0] : itemId;
+                        if (!namespace.contains(ns)) return false;
+                    } else if (token.startsWith("#")) {
+                        String tagQuery = token.substring(1);
+                        boolean tagMatch = l.itemStack().getTags().anyMatch(tag -> {
+                            String path = tag.location().getPath().toLowerCase(java.util.Locale.ROOT);
+                            String full = tag.location().toString().toLowerCase(java.util.Locale.ROOT);
+                            return path.contains(tagQuery) || full.contains(tagQuery);
+                        });
+                        if (!tagMatch) return false;
+                    } else {
+                        String name = l.itemStack().getHoverName().getString().toLowerCase(java.util.Locale.ROOT);
+                        String id = l.itemStack().getItem().toString().toLowerCase(java.util.Locale.ROOT);
+                        if (!name.contains(token) && !id.contains(token)) return false;
+                    }
+                }
+                return true;
+            });
         }
         stream = switch (sortMode) {
             case NAME -> stream.sorted(Comparator.comparing(l -> l.itemStack().getHoverName().getString()));
@@ -235,9 +239,10 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         bar.child(tint(">", 0xFF4A5F78));
         TextBoxComponent field = Components.textBox(Sizing.expand(), searchQuery);
         field.setMaxLength(64);
-        field.setSuggestion("name  |  @mod  |  #tag");
+        field.setSuggestion(searchQuery.isEmpty() ? "name  |  @mod  |  #tag" : "");
         field.onChanged().subscribe(v -> {
             searchQuery = v;
+            field.setSuggestion(v.isEmpty() ? "name  |  @mod  |  #tag" : "");
             menu.setPage(0);
             refreshUi(true);
         });
