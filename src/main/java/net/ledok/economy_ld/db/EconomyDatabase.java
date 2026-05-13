@@ -1,7 +1,10 @@
 package net.ledok.economy_ld.db;
 
+import net.ledok.economy_ld.auction.AuctionRecord;
+import net.ledok.economy_ld.auction.PendingDelivery;
 import net.ledok.economy_ld.shop.ShopRecord;
 import net.ledok.economy_ld.shop.ShopListing;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -64,4 +67,38 @@ public interface EconomyDatabase {
     CompletableFuture<Boolean> buyItem(UUID listingId, UUID buyerUuid, String buyerUsername, int quantity);
 
     CompletableFuture<Boolean> sellItem(UUID listingId, UUID sellerUuid, String sellerUsername, int quantity);
+
+    CompletableFuture<Boolean> placeAuction(
+            UUID sellerUuid,
+            String sellerName,
+            ItemStack item,
+            int quantity,
+            long startPrice,
+            Long buyoutPrice,
+            long expiresAt,
+            int listingFeePercent,
+            int maxListings
+    );
+
+    CompletableFuture<Boolean> placeBid(UUID auctionId, UUID bidderUuid, String bidderName, long bidAmount);
+
+    CompletableFuture<Boolean> buyout(UUID auctionId, UUID buyerUuid, String buyerName, int serverTaxPercent);
+
+    CompletableFuture<Boolean> cancelAuction(UUID auctionId, UUID requesterUuid);
+
+    CompletableFuture<List<AuctionRecord>> getActiveAuctions(RegistryAccess registryAccess);
+
+    CompletableFuture<List<AuctionRecord>> getPlayerAuctions(UUID sellerUuid, RegistryAccess registryAccess);
+
+    CompletableFuture<List<AuctionRecord>> getPlayerBids(UUID bidderUuid, RegistryAccess registryAccess);
+
+    CompletableFuture<Void> processExpiredAuctions(int serverTaxPercent, RegistryAccess registryAccess);
+
+    CompletableFuture<List<PendingDelivery>> claimPendingDeliveries(UUID playerUuid);
+
+    CompletableFuture<Integer> getEffectiveListingLimit(UUID playerUuid, int defaultLimit);
+
+    CompletableFuture<Void> setAuctionBonusLimit(UUID playerUuid, int bonus);
+
+    CompletableFuture<Integer> adjustAuctionBonusLimit(UUID playerUuid, int delta);
 }

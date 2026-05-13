@@ -2,11 +2,14 @@ package net.ledok.economy_ld.manager;
 
 import net.ledok.economy_ld.config.ConfigLoader;
 import net.ledok.economy_ld.config.EconomyConfig;
+import net.ledok.economy_ld.auction.AuctionRecord;
+import net.ledok.economy_ld.auction.PendingDelivery;
 import net.ledok.economy_ld.db.DatabaseFactory;
 import net.ledok.economy_ld.db.EconomyDatabase;
 import net.ledok.economy_ld.shop.ShopListing;
 import net.ledok.economy_ld.shop.ShopRecord;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.RegistryAccess;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
 import org.slf4j.Logger;
@@ -111,6 +114,22 @@ public final class EconomyManager {
         adminModeActive.remove(uuid);
     }
 
+    public int getAuctionConfig_listingFeePercent() {
+        return this.config.auction.listingFeePercent;
+    }
+
+    public int getAuctionConfig_serverTaxPercent() {
+        return this.config.auction.serverTaxPercent;
+    }
+
+    public int getAuctionConfig_defaultMaxListings() {
+        return this.config.auction.defaultMaxListingsPerPlayer;
+    }
+
+    public boolean getAuctionConfig_buyoutEnabled() {
+        return this.config.auction.buyoutEnabled;
+    }
+
     public CompletableFuture<Void> give(UUID uuid, String username, long amount) {
         if (amount <= 0) {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Amount must be greater than 0"));
@@ -200,6 +219,74 @@ public final class EconomyManager {
             return CompletableFuture.failedFuture(new IllegalArgumentException("Quantity must be greater than 0"));
         }
         return requireDatabase().sellItem(listingId, sellerUuid, sellerUsername, quantity);
+    }
+
+    public CompletableFuture<Boolean> placeAuction(
+            UUID sellerUuid,
+            String sellerName,
+            ItemStack item,
+            int quantity,
+            long startPrice,
+            Long buyoutPrice,
+            long expiresAt,
+            int listingFeePercent,
+            int maxListings
+    ) {
+        return requireDatabase().placeAuction(
+                sellerUuid,
+                sellerName,
+                item,
+                quantity,
+                startPrice,
+                buyoutPrice,
+                expiresAt,
+                listingFeePercent,
+                maxListings
+        );
+    }
+
+    public CompletableFuture<Boolean> placeBid(UUID auctionId, UUID bidderUuid, String bidderName, long bidAmount) {
+        return requireDatabase().placeBid(auctionId, bidderUuid, bidderName, bidAmount);
+    }
+
+    public CompletableFuture<Boolean> buyout(UUID auctionId, UUID buyerUuid, String buyerName, int serverTaxPercent) {
+        return requireDatabase().buyout(auctionId, buyerUuid, buyerName, serverTaxPercent);
+    }
+
+    public CompletableFuture<Boolean> cancelAuction(UUID auctionId, UUID requesterUuid) {
+        return requireDatabase().cancelAuction(auctionId, requesterUuid);
+    }
+
+    public CompletableFuture<List<AuctionRecord>> getActiveAuctions(RegistryAccess registryAccess) {
+        return requireDatabase().getActiveAuctions(registryAccess);
+    }
+
+    public CompletableFuture<List<AuctionRecord>> getPlayerAuctions(UUID sellerUuid, RegistryAccess registryAccess) {
+        return requireDatabase().getPlayerAuctions(sellerUuid, registryAccess);
+    }
+
+    public CompletableFuture<List<AuctionRecord>> getPlayerBids(UUID bidderUuid, RegistryAccess registryAccess) {
+        return requireDatabase().getPlayerBids(bidderUuid, registryAccess);
+    }
+
+    public CompletableFuture<Void> processExpiredAuctions(int serverTaxPercent, RegistryAccess registryAccess) {
+        return requireDatabase().processExpiredAuctions(serverTaxPercent, registryAccess);
+    }
+
+    public CompletableFuture<List<PendingDelivery>> claimPendingDeliveries(UUID playerUuid) {
+        return requireDatabase().claimPendingDeliveries(playerUuid);
+    }
+
+    public CompletableFuture<Integer> getEffectiveListingLimit(UUID playerUuid, int defaultLimit) {
+        return requireDatabase().getEffectiveListingLimit(playerUuid, defaultLimit);
+    }
+
+    public CompletableFuture<Void> setAuctionBonusLimit(UUID playerUuid, int bonus) {
+        return requireDatabase().setAuctionBonusLimit(playerUuid, bonus);
+    }
+
+    public CompletableFuture<Integer> adjustAuctionBonusLimit(UUID playerUuid, int delta) {
+        return requireDatabase().adjustAuctionBonusLimit(playerUuid, delta);
     }
 
     public CompletableFuture<Void> reloadConfig() {

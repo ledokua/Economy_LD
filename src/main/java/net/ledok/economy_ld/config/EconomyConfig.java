@@ -5,6 +5,7 @@ public final class EconomyConfig {
     public Sqlite sqlite = new Sqlite();
     public Mariadb mariadb = new Mariadb();
     public Currency currency = new Currency();
+    public Auction auction = new Auction();
 
     public void sanitize() {
         if (storageType == null || storageType.isBlank()) {
@@ -20,9 +21,13 @@ public final class EconomyConfig {
         if (currency == null) {
             currency = new Currency();
         }
+        if (auction == null) {
+            auction = new Auction();
+        }
         sqlite.sanitize();
         mariadb.sanitize();
         currency.sanitize();
+        auction.sanitize();
     }
 
     public static final class Sqlite {
@@ -72,6 +77,19 @@ public final class EconomyConfig {
             if (symbol == null || symbol.isBlank()) {
                 symbol = "LC";
             }
+        }
+    }
+
+    public static final class Auction {
+        public int listingFeePercent = 5;
+        public int serverTaxPercent = 10;
+        public int defaultMaxListingsPerPlayer = 10;
+        public boolean buyoutEnabled = true;
+
+        private void sanitize() {
+            listingFeePercent = Math.max(0, Math.min(100, listingFeePercent));
+            serverTaxPercent = Math.max(0, Math.min(100, serverTaxPercent));
+            defaultMaxListingsPerPlayer = Math.max(1, defaultMaxListingsPerPlayer);
         }
     }
 }

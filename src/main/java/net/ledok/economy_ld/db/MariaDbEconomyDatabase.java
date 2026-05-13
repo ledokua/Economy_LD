@@ -46,6 +46,21 @@ public final class MariaDbEconomyDatabase extends AbstractJdbcEconomyDatabase {
     }
 
     @Override
+    protected String pendingDeliveriesSchema() {
+        return """
+                CREATE TABLE IF NOT EXISTS pending_deliveries (
+                    id           BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    player_uuid  VARCHAR(36) NOT NULL,
+                    item_nbt     TEXT,
+                    quantity     INT,
+                    lc_amount    BIGINT,
+                    reason       VARCHAR(32) NOT NULL,
+                    created_at   BIGINT NOT NULL
+                )
+                """;
+    }
+
+    @Override
     protected String upsertShopSql() {
         return """
                 INSERT INTO shops (id, owner_uuid, is_admin, world, x, y, z, created_at)
