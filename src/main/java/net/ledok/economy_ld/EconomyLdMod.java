@@ -50,7 +50,23 @@ public class EconomyLdMod implements ModInitializer {
         ServerPlayConnectionEvents.JOIN.register((handler, sender, server) -> {
             ServerPlayer player = handler.player;
             EconomyManager.getInstance().claimPendingDeliveries(player.getUUID())
-                    .thenAccept(deliveries -> server.execute(() -> applyPendingDeliveries(player, deliveries)));
+                    .thenAccept(deliveries -> server.execute(() -> {
+                        applyPendingDeliveries(player, deliveries);
+                        EconomyManager.getInstance().getPendingDeliveries(player.getUUID())
+                                .whenComplete((pending, error) -> server.execute(() -> {
+                                    if (error == null && pending != null) {
+                                        long now = System.currentTimeMillis() / 1000L;
+                                        boolean expiringSoon = pending.stream()
+                                                .anyMatch(delivery -> delivery.expiresAt() > 0L && delivery.expiresAt() < now + 86400L);
+                                        if (expiringSoon) {
+                                            player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                                                    "⚠ You have items in your auction inbox expiring within 24 hours! Use /ah inbox to claim them."
+                                            ));
+                                        }
+                                    }
+                                    AuctionNetworking.syncInboxToPlayer(player);
+                                }));
+                    }));
         });
 
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) ->

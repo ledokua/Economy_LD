@@ -4,18 +4,23 @@ import net.ledok.economy_ld.manager.EconomyManager;
 import net.minecraft.server.MinecraftServer;
 
 public class AuctionExpiryTicker {
-    private int tickCounter = 0;
+    private int auctionTickCounter = 0;
+    private int cleanupTickCounter = 0;
 
     public void onServerTick(MinecraftServer server) {
-        if (++tickCounter < 20) {
-            return;
+        if (++auctionTickCounter >= 20) {
+            auctionTickCounter = 0;
+            EconomyManager.getInstance().processExpiredAuctions(
+                    EconomyManager.getInstance().getAuctionConfig_serverTaxPercent(),
+                    server.registryAccess()
+            ).thenAccept(ignored -> {
+            });
         }
-        tickCounter = 0;
 
-        EconomyManager.getInstance().processExpiredAuctions(
-                EconomyManager.getInstance().getAuctionConfig_serverTaxPercent(),
-                server.registryAccess()
-        ).thenAccept(ignored -> {
-        });
+        if (++cleanupTickCounter >= 1200) {
+            cleanupTickCounter = 0;
+            EconomyManager.getInstance().cleanExpiredDeliveries().thenAccept(ignored -> {
+            });
+        }
     }
 }

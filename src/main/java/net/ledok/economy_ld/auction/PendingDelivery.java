@@ -5,10 +5,12 @@ import net.minecraft.world.item.ItemStack;
 import java.util.UUID;
 
 public record PendingDelivery(
+        long id,
         UUID playerUuid,
         ItemStack itemStack,
         int quantity,
         Long lcAmount,
-        String reason
+        String reason,
+        long expiresAt
 ) {
 }

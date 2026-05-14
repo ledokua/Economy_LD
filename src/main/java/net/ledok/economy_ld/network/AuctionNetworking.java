@@ -7,20 +7,26 @@ import net.ledok.economy_ld.EconomyLdMod;
 import net.ledok.economy_ld.auction.AuctionRecord;
 import net.ledok.economy_ld.auction.PendingDelivery;
 import net.ledok.economy_ld.client.screen.AuctionClientState;
+import net.ledok.economy_ld.client.screen.InboxClientState;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.network.packet.c2s.BuyoutAuctionC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.CancelAuctionC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.ClaimAllInboxC2SPacket;
+import net.ledok.economy_ld.network.packet.c2s.ClaimInboxItemC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.PlaceAuctionC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.PlaceBidC2SPacket;
 import net.ledok.economy_ld.network.packet.s2c.AuctionActionResultS2CPacket;
 import net.ledok.economy_ld.network.packet.s2c.AuctionListSyncS2CPacket;
+import net.ledok.economy_ld.network.packet.s2c.InboxSyncS2CPacket;
 import net.ledok.economy_ld.network.packet.s2c.OpenAuctionScreenS2CPacket;
+import net.ledok.economy_ld.network.packet.s2c.OpenInboxScreenS2CPacket;
 import net.ledok.economy_ld.util.ItemStackSerializationUtil;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public final class AuctionNetworking {
@@ -32,9 +38,13 @@ public final class AuctionNetworking {
         PayloadTypeRegistry.playC2S().register(PlaceBidC2SPacket.TYPE, PlaceBidC2SPacket.CODEC);
         PayloadTypeRegistry.playC2S().register(BuyoutAuctionC2SPacket.TYPE, BuyoutAuctionC2SPacket.CODEC);
         PayloadTypeRegistry.playC2S().register(CancelAuctionC2SPacket.TYPE, CancelAuctionC2SPacket.CODEC);
+        PayloadTypeRegistry.playC2S().register(ClaimInboxItemC2SPacket.TYPE, ClaimInboxItemC2SPacket.CODEC);
+        PayloadTypeRegistry.playC2S().register(ClaimAllInboxC2SPacket.TYPE, ClaimAllInboxC2SPacket.CODEC);
         PayloadTypeRegistry.playS2C().register(AuctionListSyncS2CPacket.TYPE, AuctionListSyncS2CPacket.CODEC);
         PayloadTypeRegistry.playS2C().register(AuctionActionResultS2CPacket.TYPE, AuctionActionResultS2CPacket.CODEC);
         PayloadTypeRegistry.playS2C().register(OpenAuctionScreenS2CPacket.TYPE, OpenAuctionScreenS2CPacket.CODEC);
+        PayloadTypeRegistry.playS2C().register(InboxSyncS2CPacket.TYPE, InboxSyncS2CPacket.CODEC);
+        PayloadTypeRegistry.playS2C().register(OpenInboxScreenS2CPacket.TYPE, OpenInboxScreenS2CPacket.CODEC);
     }
 
     public static void registerServerReceivers() {
@@ -49,6 +59,12 @@ public final class AuctionNetworking {
 
         ServerPlayNetworking.registerGlobalReceiver(CancelAuctionC2SPacket.TYPE, (payload, context) ->
                 context.server().execute(() -> handleCancel(payload, context.player())));
+
+        ServerPlayNetworking.registerGlobalReceiver(ClaimInboxItemC2SPacket.TYPE, (payload, context) ->
+                context.server().execute(() -> handleClaimInboxItem(payload, context.player())));
+
+        ServerPlayNetworking.registerGlobalReceiver(ClaimAllInboxC2SPacket.TYPE, (payload, context) ->
+                context.server().execute(() -> handleClaimAllInbox(context.player())));
     }
 
     public static void registerClientReceivers() {
@@ -58,6 +74,10 @@ public final class AuctionNetworking {
                 AuctionClientState.setLastResult(payload));
         ClientPlayNetworking.registerGlobalReceiver(OpenAuctionScreenS2CPacket.TYPE, (payload, context) ->
                 AuctionClientState.markOpenRequested());
+        ClientPlayNetworking.registerGlobalReceiver(InboxSyncS2CPacket.TYPE, (payload, context) ->
+                InboxClientState.setDeliveries(payload.deliveries()));
+        ClientPlayNetworking.registerGlobalReceiver(OpenInboxScreenS2CPacket.TYPE, (payload, context) ->
+                InboxClientState.markOpenRequested());
     }
 
     public static void syncAuctionsToPlayer(ServerPlayer player) {
@@ -71,6 +91,12 @@ public final class AuctionNetworking {
                 .thenAccept(auctions -> server.execute(() ->
                         server.getPlayerList().getPlayers().forEach(player ->
                                 ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(auctions)))));
+    }
+
+    public static void syncInboxToPlayer(ServerPlayer player) {
+        EconomyManager.getInstance().getPendingDeliveries(player.getUUID())
+                .thenAccept(deliveries -> player.server.execute(() ->
+                        ServerPlayNetworking.send(player, new InboxSyncS2CPacket(deliveries))));
     }
 
     private static void handlePlaceAuction(PlaceAuctionC2SPacket payload, ServerPlayer player) {
@@ -322,6 +348,42 @@ public final class AuctionNetworking {
                                 }
                                 syncAuctionsToAll(player.server);
                             }));
+                }));
+    }
+
+    private static void handleClaimInboxItem(ClaimInboxItemC2SPacket payload, ServerPlayer player) {
+        EconomyManager manager = EconomyManager.getInstance();
+        manager.getPendingDeliveries(player.getUUID())
+                .thenCompose(deliveries -> {
+                    boolean belongsToPlayer = deliveries.stream().anyMatch(d -> d.id() == payload.deliveryId());
+                    if (!belongsToPlayer) {
+                        return java.util.concurrent.CompletableFuture.completedFuture(Optional.<PendingDelivery>empty());
+                    }
+                    return manager.claimSingleDelivery(payload.deliveryId());
+                })
+                .whenComplete((deliveryOpt, error) -> player.server.execute(() -> {
+                    if (error != null) {
+                        EconomyLdMod.LOGGER.warn("Failed to claim inbox item {} for {}", payload.deliveryId(),
+                                player.getName().getString(), error);
+                        syncInboxToPlayer(player);
+                        return;
+                    }
+                    deliveryOpt.ifPresent(delivery -> deliverPending(player, List.of(delivery), manager));
+                    syncInboxToPlayer(player);
+                }));
+    }
+
+    private static void handleClaimAllInbox(ServerPlayer player) {
+        EconomyManager manager = EconomyManager.getInstance();
+        manager.claimAllDeliveries(player.getUUID())
+                .whenComplete((deliveries, error) -> player.server.execute(() -> {
+                    if (error != null) {
+                        EconomyLdMod.LOGGER.warn("Failed to claim all inbox items for {}", player.getName().getString(), error);
+                        syncInboxToPlayer(player);
+                        return;
+                    }
+                    deliverPending(player, deliveries, manager);
+                    syncInboxToPlayer(player);
                 }));
     }
 

@@ -93,6 +93,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                 ensureColumnExists(conn, "auctions", "quantity", "INT NOT NULL DEFAULT 1");
                 ensureColumnExists(conn, "auctions", "buyout_price", "BIGINT");
                 statement.executeUpdate(pendingDeliveriesSchema());
+                ensureColumnExists(conn, "pending_deliveries", "expires_at", "BIGINT NOT NULL DEFAULT 0");
                 statement.executeUpdate("""
                         CREATE TABLE IF NOT EXISTS player_auction_limits (
                             uuid         VARCHAR(36) PRIMARY KEY,
@@ -1073,27 +1074,39 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     public CompletableFuture<List<PendingDelivery>> claimPendingDeliveries(UUID playerUuid) {
         return CompletableFuture.supplyAsync(() -> {
             List<PendingDelivery> deliveries = new ArrayList<>();
+            long now = System.currentTimeMillis() / 1000L;
             try (Connection conn = connection()) {
                 conn.setAutoCommit(false);
                 try (PreparedStatement ps = conn.prepareStatement("""
-                        SELECT item_nbt, quantity, lc_amount, reason
+                        SELECT id, item_nbt, quantity, lc_amount, reason, expires_at
                         FROM pending_deliveries
                         WHERE player_uuid = ?
+                          AND (expires_at <= 0 OR expires_at >= ?)
                         ORDER BY id ASC
                         """)) {
                     ps.setString(1, playerUuid.toString());
+                    ps.setLong(2, now);
                     try (ResultSet rs = ps.executeQuery()) {
                         while (rs.next()) {
+                            long id = rs.getLong("id");
                             String itemNbt = rs.getString("item_nbt");
                             ItemStack stack = itemNbt == null ? null : ItemStackSerializationUtil.fromBase64(itemNbt);
                             int quantity = Math.max(0, rs.getInt("quantity"));
                             Long lcAmount = rs.getObject("lc_amount") == null ? null : rs.getLong("lc_amount");
                             String reason = rs.getString("reason");
-                            deliveries.add(new PendingDelivery(playerUuid, stack, quantity, lcAmount, reason));
+                            long expiresAt = rs.getLong("expires_at");
+                            deliveries.add(new PendingDelivery(id, playerUuid, stack, quantity, lcAmount, reason, expiresAt));
                         }
                     }
-                    try (PreparedStatement delete = conn.prepareStatement("DELETE FROM pending_deliveries WHERE player_uuid = ?")) {
+                    try (PreparedStatement deleteExpired = conn.prepareStatement(
+                            "DELETE FROM pending_deliveries WHERE expires_at > 0 AND expires_at < ?")) {
+                        deleteExpired.setLong(1, now);
+                        deleteExpired.executeUpdate();
+                    }
+                    try (PreparedStatement delete = conn.prepareStatement(
+                            "DELETE FROM pending_deliveries WHERE player_uuid = ? AND (expires_at <= 0 OR expires_at >= ?)")) {
                         delete.setString(1, playerUuid.toString());
+                        delete.setLong(2, now);
                         delete.executeUpdate();
                     }
                     conn.commit();
@@ -1106,6 +1119,167 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                 }
             } catch (Exception e) {
                 throw new RuntimeException("Failed to claim pending deliveries", e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<List<PendingDelivery>> getPendingDeliveries(UUID playerUuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            List<PendingDelivery> deliveries = new ArrayList<>();
+            long now = System.currentTimeMillis() / 1000L;
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("""
+                        SELECT id, item_nbt, quantity, lc_amount, reason, expires_at
+                        FROM pending_deliveries
+                        WHERE player_uuid = ?
+                          AND (expires_at <= 0 OR expires_at >= ?)
+                        ORDER BY id ASC
+                        """)) {
+                ps.setString(1, playerUuid.toString());
+                ps.setLong(2, now);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        long id = rs.getLong("id");
+                        String itemNbt = rs.getString("item_nbt");
+                        ItemStack stack = itemNbt == null ? null : ItemStackSerializationUtil.fromBase64(itemNbt);
+                        int quantity = Math.max(0, rs.getInt("quantity"));
+                        Long lcAmount = rs.getObject("lc_amount") == null ? null : rs.getLong("lc_amount");
+                        String reason = rs.getString("reason");
+                        long expiresAt = rs.getLong("expires_at");
+                        deliveries.add(new PendingDelivery(id, playerUuid, stack, quantity, lcAmount, reason, expiresAt));
+                    }
+                }
+                return deliveries;
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to get pending deliveries for " + playerUuid, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Optional<PendingDelivery>> claimSingleDelivery(long deliveryId) {
+        return CompletableFuture.supplyAsync(() -> {
+            long now = System.currentTimeMillis() / 1000L;
+            try (Connection conn = connection()) {
+                conn.setAutoCommit(false);
+                try {
+                    try (PreparedStatement deleteExpired = conn.prepareStatement(
+                            "DELETE FROM pending_deliveries WHERE expires_at > 0 AND expires_at < ?")) {
+                        deleteExpired.setLong(1, now);
+                        deleteExpired.executeUpdate();
+                    }
+
+                    PendingDelivery delivery = null;
+                    try (PreparedStatement select = conn.prepareStatement("""
+                            SELECT id, player_uuid, item_nbt, quantity, lc_amount, reason, expires_at
+                            FROM pending_deliveries
+                            WHERE id = ?
+                              AND (expires_at <= 0 OR expires_at >= ?)
+                            """)) {
+                        select.setLong(1, deliveryId);
+                        select.setLong(2, now);
+                        try (ResultSet rs = select.executeQuery()) {
+                            if (rs.next()) {
+                                String playerUuidRaw = rs.getString("player_uuid");
+                                UUID playerUuid = playerUuidRaw == null ? null : UUID.fromString(playerUuidRaw);
+                                String itemNbt = rs.getString("item_nbt");
+                                ItemStack stack = itemNbt == null ? null : ItemStackSerializationUtil.fromBase64(itemNbt);
+                                int quantity = Math.max(0, rs.getInt("quantity"));
+                                Long lcAmount = rs.getObject("lc_amount") == null ? null : rs.getLong("lc_amount");
+                                String reason = rs.getString("reason");
+                                long expiresAt = rs.getLong("expires_at");
+                                delivery = new PendingDelivery(rs.getLong("id"), playerUuid, stack, quantity, lcAmount, reason, expiresAt);
+                            }
+                        }
+                    }
+
+                    if (delivery != null) {
+                        try (PreparedStatement delete = conn.prepareStatement("DELETE FROM pending_deliveries WHERE id = ?")) {
+                            delete.setLong(1, deliveryId);
+                            delete.executeUpdate();
+                        }
+                    }
+                    conn.commit();
+                    return Optional.ofNullable(delivery);
+                } catch (Exception e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(true);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to claim pending delivery id=" + deliveryId, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<List<PendingDelivery>> claimAllDeliveries(UUID playerUuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            List<PendingDelivery> deliveries = new ArrayList<>();
+            long now = System.currentTimeMillis() / 1000L;
+            try (Connection conn = connection()) {
+                conn.setAutoCommit(false);
+                try {
+                    try (PreparedStatement deleteExpired = conn.prepareStatement(
+                            "DELETE FROM pending_deliveries WHERE expires_at > 0 AND expires_at < ?")) {
+                        deleteExpired.setLong(1, now);
+                        deleteExpired.executeUpdate();
+                    }
+                    try (PreparedStatement select = conn.prepareStatement("""
+                            SELECT id, item_nbt, quantity, lc_amount, reason, expires_at
+                            FROM pending_deliveries
+                            WHERE player_uuid = ?
+                              AND (expires_at <= 0 OR expires_at >= ?)
+                            ORDER BY id ASC
+                            """)) {
+                        select.setString(1, playerUuid.toString());
+                        select.setLong(2, now);
+                        try (ResultSet rs = select.executeQuery()) {
+                            while (rs.next()) {
+                                long id = rs.getLong("id");
+                                String itemNbt = rs.getString("item_nbt");
+                                ItemStack stack = itemNbt == null ? null : ItemStackSerializationUtil.fromBase64(itemNbt);
+                                int quantity = Math.max(0, rs.getInt("quantity"));
+                                Long lcAmount = rs.getObject("lc_amount") == null ? null : rs.getLong("lc_amount");
+                                String reason = rs.getString("reason");
+                                long expiresAt = rs.getLong("expires_at");
+                                deliveries.add(new PendingDelivery(id, playerUuid, stack, quantity, lcAmount, reason, expiresAt));
+                            }
+                        }
+                    }
+                    try (PreparedStatement delete = conn.prepareStatement(
+                            "DELETE FROM pending_deliveries WHERE player_uuid = ? AND (expires_at <= 0 OR expires_at >= ?)")) {
+                        delete.setString(1, playerUuid.toString());
+                        delete.setLong(2, now);
+                        delete.executeUpdate();
+                    }
+                    conn.commit();
+                    return deliveries;
+                } catch (Exception e) {
+                    conn.rollback();
+                    throw e;
+                } finally {
+                    conn.setAutoCommit(true);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to claim all pending deliveries for " + playerUuid, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> cleanExpiredDeliveries() {
+        return CompletableFuture.runAsync(() -> {
+            long now = System.currentTimeMillis() / 1000L;
+            try (Connection conn = connection();
+                 PreparedStatement delete = conn.prepareStatement(
+                         "DELETE FROM pending_deliveries WHERE expires_at > 0 AND expires_at < ?")) {
+                delete.setLong(1, now);
+                delete.executeUpdate();
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to cleanup expired pending deliveries", e);
             }
         }, executor);
     }
@@ -1267,31 +1441,37 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     }
 
     private void enqueuePendingItem(Connection conn, UUID playerUuid, String itemNbt, int quantity, String reason) throws SQLException {
+        long now = System.currentTimeMillis() / 1000L;
+        long expiresAt = now + 172800L;
         try (PreparedStatement ps = conn.prepareStatement("""
-                INSERT INTO pending_deliveries (player_uuid, item_nbt, quantity, lc_amount, reason, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO pending_deliveries (player_uuid, item_nbt, quantity, lc_amount, reason, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """)) {
             ps.setString(1, playerUuid.toString());
             ps.setString(2, itemNbt);
             ps.setInt(3, Math.max(1, quantity));
             ps.setNull(4, java.sql.Types.BIGINT);
             ps.setString(5, reason);
-            ps.setLong(6, System.currentTimeMillis() / 1000L);
+            ps.setLong(6, now);
+            ps.setLong(7, expiresAt);
             ps.executeUpdate();
         }
     }
 
     private void enqueuePendingLc(Connection conn, UUID playerUuid, long amount, String reason) throws SQLException {
+        long now = System.currentTimeMillis() / 1000L;
+        long expiresAt = now + 172800L;
         try (PreparedStatement ps = conn.prepareStatement("""
-                INSERT INTO pending_deliveries (player_uuid, item_nbt, quantity, lc_amount, reason, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO pending_deliveries (player_uuid, item_nbt, quantity, lc_amount, reason, created_at, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """)) {
             ps.setString(1, playerUuid.toString());
             ps.setNull(2, java.sql.Types.VARCHAR);
             ps.setNull(3, java.sql.Types.INTEGER);
             ps.setLong(4, Math.max(0L, amount));
             ps.setString(5, reason);
-            ps.setLong(6, System.currentTimeMillis() / 1000L);
+            ps.setLong(6, now);
+            ps.setLong(7, expiresAt);
             ps.executeUpdate();
         }
     }

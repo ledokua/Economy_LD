@@ -10,6 +10,7 @@ import net.ledok.economy_ld.auction.AuctionRecord;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.network.AuctionNetworking;
 import net.ledok.economy_ld.network.packet.s2c.OpenAuctionScreenS2CPacket;
+import net.ledok.economy_ld.network.packet.s2c.OpenInboxScreenS2CPacket;
 import net.ledok.economy_ld.util.CurrencyFormatter;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -49,6 +50,8 @@ public final class AuctionCommand {
                         .executes(ctx -> listOwnAuctions(ctx.getSource())))
                 .then(Commands.literal("bids")
                         .executes(ctx -> listOwnBids(ctx.getSource())))
+                .then(Commands.literal("inbox")
+                        .executes(ctx -> openInbox(ctx.getSource())))
                 .then(Commands.literal("cancel")
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .executes(ctx -> cancelAuctionByPrefix(
@@ -111,6 +114,20 @@ public final class AuctionCommand {
         }
         ServerPlayNetworking.send(player, new OpenAuctionScreenS2CPacket());
         AuctionNetworking.syncAuctionsToPlayer(player);
+        return 1;
+    }
+
+    private static int openInbox(CommandSourceStack source) {
+        ServerPlayer player;
+        try {
+            player = source.getPlayerOrException();
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Only players can use /ah inbox."));
+            return 0;
+        }
+
+        AuctionNetworking.syncInboxToPlayer(player);
+        ServerPlayNetworking.send(player, new OpenInboxScreenS2CPacket());
         return 1;
     }
 

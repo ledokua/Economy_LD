@@ -55,7 +55,8 @@ public final class MariaDbEconomyDatabase extends AbstractJdbcEconomyDatabase {
                     quantity     INT,
                     lc_amount    BIGINT,
                     reason       VARCHAR(32) NOT NULL,
-                    created_at   BIGINT NOT NULL
+                    created_at   BIGINT NOT NULL,
+                    expires_at   BIGINT NOT NULL DEFAULT 0
                 )
                 """;
     }

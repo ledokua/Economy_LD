@@ -97,6 +97,14 @@ public interface EconomyDatabase {
 
     CompletableFuture<List<PendingDelivery>> claimPendingDeliveries(UUID playerUuid);
 
+    CompletableFuture<List<PendingDelivery>> getPendingDeliveries(UUID playerUuid);
+
+    CompletableFuture<Optional<PendingDelivery>> claimSingleDelivery(long deliveryId);
+
+    CompletableFuture<List<PendingDelivery>> claimAllDeliveries(UUID playerUuid);
+
+    CompletableFuture<Void> cleanExpiredDeliveries();
+
     CompletableFuture<Integer> getEffectiveListingLimit(UUID playerUuid, int defaultLimit);
 
     CompletableFuture<Void> setAuctionBonusLimit(UUID playerUuid, int bonus);
