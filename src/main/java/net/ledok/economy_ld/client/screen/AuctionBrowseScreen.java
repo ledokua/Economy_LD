@@ -682,12 +682,20 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         if (activeDialog != null) return;
         if (minecraft == null || minecraft.player == null) return;
 
-        List<ItemStack> slots = new ArrayList<>();
+        Map<String, ItemStack> merged = new LinkedHashMap<>();
         var inv = minecraft.player.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack s = inv.getItem(i);
-            if (!s.isEmpty()) slots.add(s);
+            if (s.isEmpty()) continue;
+            String key = s.getItem().toString() + s.getComponentsPatch();
+            if (merged.containsKey(key)) {
+                ItemStack existing = merged.get(key);
+                existing.setCount(existing.getCount() + s.getCount());
+            } else {
+                merged.put(key, s.copy());
+            }
         }
+        List<ItemStack> slots = new ArrayList<>(merged.values());
 
         FlowLayout panel = Containers.verticalFlow(Sizing.fixed(480), Sizing.content());
         panel.surface(Surface.flat(0xFF111C28).and(Surface.outline(C_HAIR_HI)));

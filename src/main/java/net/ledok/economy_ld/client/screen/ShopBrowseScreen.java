@@ -773,13 +773,21 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         if (this.listingDialog != null) return;
         if (this.minecraft == null || this.minecraft.player == null) return;
 
-        // Collect unique non-empty stacks from player inventory
-        java.util.List<ItemStack> slots = new java.util.ArrayList<>();
+        // Merge stacks by item+components so picker shows combined counts
+        java.util.Map<String, ItemStack> merged = new java.util.LinkedHashMap<>();
         var inv = this.minecraft.player.getInventory();
         for (int i = 0; i < inv.getContainerSize(); i++) {
             ItemStack s = inv.getItem(i);
-            if (!s.isEmpty()) slots.add(s);
+            if (s.isEmpty()) continue;
+            String key = s.getItem().toString() + s.getComponentsPatch();
+            if (merged.containsKey(key)) {
+                ItemStack existing = merged.get(key);
+                existing.setCount(existing.getCount() + s.getCount());
+            } else {
+                merged.put(key, s.copy());
+            }
         }
+        java.util.List<ItemStack> slots = new java.util.ArrayList<>(merged.values());
 
         FlowLayout panel = Containers.verticalFlow(Sizing.fixed(480), Sizing.content());
         panel.surface(Surface.flat(0xFF111C28).and(Surface.outline(0xFF4E6177)));

@@ -152,7 +152,7 @@ public final class AuctionNetworking {
                             itemName,
                             listingFee
                     ));
-                    syncAuctionsToPlayer(player);
+                    syncAuctionsToAll(player.server);
                 }));
     }
 
