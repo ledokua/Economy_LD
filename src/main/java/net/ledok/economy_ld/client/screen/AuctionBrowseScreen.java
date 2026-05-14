@@ -920,6 +920,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
             case BUYOUT -> { side = C_AMBER; titleC = C_AMBER; title = "BOUGHT"; body = "Won " + r.itemName() + " for " + String.format("%,d", r.lcAmount()) + " LC"; }
             case CANCELLED -> { side = C_INK_MID; titleC = C_INK_MID; title = "CANCELLED"; body = r.itemName() + " listing cancelled."; }
             case INSUFFICIENT_FUNDS -> { side = C_RED; titleC = 0xFFE88080; title = "INSUFFICIENT FUNDS"; body = "Need " + String.format("%,d", r.lcAmount()) + " LC."; }
+            case NOT_ENOUGH_ITEMS -> { side = C_RED; titleC = 0xFFE88080; title = "NOT ENOUGH ITEMS"; body = "You don't have enough " + r.itemName() + " in your inventory."; }
             case LIMIT_REACHED -> { side = C_RED; titleC = 0xFFE88080; title = "LIMIT REACHED"; body = "You have reached your listing limit."; }
             case ALREADY_ENDED -> { side = C_RED; titleC = 0xFFE88080; title = "ALREADY ENDED"; body = r.itemName() + " auction has ended."; }
             default -> { return; }

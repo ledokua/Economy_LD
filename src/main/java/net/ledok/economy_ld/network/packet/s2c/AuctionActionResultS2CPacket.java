@@ -45,6 +45,7 @@ public record AuctionActionResultS2CPacket(
         BUYOUT,
         CANCELLED,
         INSUFFICIENT_FUNDS,
+        NOT_ENOUGH_ITEMS,
         LIMIT_REACHED,
         ALREADY_ENDED
     }

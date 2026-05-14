@@ -5,6 +5,7 @@ import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.ledok.economy_ld.EconomyLdMod;
 import net.ledok.economy_ld.auction.AuctionRecord;
+import net.ledok.economy_ld.auction.PendingDelivery;
 import net.ledok.economy_ld.client.screen.AuctionClientState;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.network.packet.c2s.BuyoutAuctionC2SPacket;
@@ -85,6 +86,16 @@ public final class AuctionNetworking {
         }
 
         int quantity = Math.max(1, payload.quantity());
+        int available = countMatchingItems(player, item);
+        if (available < quantity) {
+            sendActionResult(player, new AuctionActionResultS2CPacket(
+                    AuctionActionResultS2CPacket.ActionType.NOT_ENOUGH_ITEMS,
+                    item.getHoverName().getString(),
+                    0L
+            ));
+            return;
+        }
+
         long startPrice = Math.max(1L, payload.startPrice());
         long durationSeconds = Math.max(60L, payload.durationSeconds());
         long expiresAt = (System.currentTimeMillis() / 1000L) + durationSeconds;
@@ -242,7 +253,16 @@ public final class AuctionNetworking {
                             itemName,
                             buyoutPrice
                     ));
-                    syncAuctionsToAll(player.server);
+                    manager.claimPendingDeliveries(player.getUUID())
+                            .whenComplete((deliveries, claimError) -> player.server.execute(() -> {
+                                if (claimError != null) {
+                                    EconomyLdMod.LOGGER.warn("Failed to claim pending deliveries after buyout for {}",
+                                            player.getName().getString(), claimError);
+                                } else {
+                                    deliverPending(player, deliveries, manager);
+                                }
+                                syncAuctionsToAll(player.server);
+                            }));
                 }));
     }
 
@@ -292,7 +312,16 @@ public final class AuctionNetworking {
                             result.current().itemStack().getHoverName().getString(),
                             0L
                     ));
-                    syncAuctionsToAll(player.server);
+                    manager.claimPendingDeliveries(player.getUUID())
+                            .whenComplete((deliveries, claimError) -> player.server.execute(() -> {
+                                if (claimError != null) {
+                                    EconomyLdMod.LOGGER.warn("Failed to claim pending deliveries after cancel for {}",
+                                            player.getName().getString(), claimError);
+                                } else {
+                                    deliverPending(player, deliveries, manager);
+                                }
+                                syncAuctionsToAll(player.server);
+                            }));
                 }));
     }
 
@@ -305,6 +334,36 @@ public final class AuctionNetworking {
             return null;
         }
         return Math.max(startPrice, rawBuyout);
+    }
+
+    private static int countMatchingItems(ServerPlayer player, ItemStack template) {
+        ItemStack normalizedTemplate;
+        try {
+            String encoded = ItemStackSerializationUtil.toBase64(template, player.registryAccess());
+            normalizedTemplate = ItemStackSerializationUtil.fromBase64(encoded, player.registryAccess());
+        } catch (Exception e) {
+            normalizedTemplate = template;
+        }
+
+        int available = 0;
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            ItemStack normalizedStack;
+            try {
+                String encoded = ItemStackSerializationUtil.toBase64(stack.copyWithCount(1), player.registryAccess());
+                normalizedStack = ItemStackSerializationUtil.fromBase64(encoded, player.registryAccess());
+            } catch (Exception e) {
+                continue;
+            }
+            if (!ItemStack.isSameItemSameComponents(normalizedStack, normalizedTemplate)) {
+                continue;
+            }
+            available += stack.getCount();
+        }
+        return available;
     }
 
     private static int removeMatchingItems(ServerPlayer player, ItemStack template, int wanted) {
@@ -340,6 +399,27 @@ public final class AuctionNetworking {
             }
         }
         return removed;
+    }
+
+    private static void deliverPending(ServerPlayer player, List<PendingDelivery> deliveries, EconomyManager manager) {
+        if (deliveries == null || deliveries.isEmpty()) {
+            return;
+        }
+
+        for (PendingDelivery delivery : deliveries) {
+            if (delivery.itemStack() != null && !delivery.itemStack().isEmpty()) {
+                ItemStack give = delivery.itemStack().copyWithCount(Math.max(1, delivery.quantity()));
+                if (!player.getInventory().add(give)) {
+                    player.drop(give, false);
+                }
+                continue;
+            }
+            if (delivery.lcAmount() != null && delivery.lcAmount() > 0L) {
+                manager.give(player.getUUID(), player.getName().getString(), delivery.lcAmount());
+            }
+        }
+
+        player.inventoryMenu.sendAllDataToRemote();
     }
 
     private record PlaceAuctionResult(boolean success, boolean limitReached, int limit) {
