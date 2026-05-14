@@ -102,7 +102,8 @@ public final class AuctionNetworking {
                         buyoutPrice,
                         expiresAt,
                         manager.getAuctionConfig_listingFeePercent(),
-                        limit
+                        limit,
+                        player.registryAccess()
                 ).thenCompose(success -> {
                     if (Boolean.TRUE.equals(success)) {
                         return java.util.concurrent.CompletableFuture.completedFuture(new PlaceAuctionResult(true, false, limit));

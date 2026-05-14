@@ -655,7 +655,8 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
             Long buyoutPrice,
             long expiresAt,
             int listingFeePercent,
-            int maxListings
+            int maxListings,
+            RegistryAccess registryAccess
     ) {
         return CompletableFuture.supplyAsync(() -> {
             int normalizedQuantity = Math.max(1, quantity);
@@ -711,7 +712,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                             """)) {
                         insert.setString(1, UUID.randomUUID().toString());
                         insert.setString(2, sellerUuid.toString());
-                        insert.setString(3, ItemStackSerializationUtil.toBase64(item));
+                        insert.setString(3, ItemStackSerializationUtil.toBase64(item, registryAccess));
                         insert.setInt(4, normalizedQuantity);
                         insert.setLong(5, normalizedStartPrice);
                         if (buyoutPrice == null) {

@@ -822,16 +822,49 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         // Duration picker
         FlowLayout durationSection = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
         durationSection.gap(6);
-        durationSection.child(tint("DURATION", C_INK_MID));
+        FlowLayout durationHead = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
+        durationHead.child(tint("DURATION", C_INK_MID));
+        durationHead.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
+        LabelComponent selectedDurLabel = tint("1 HOUR", C_AMBER);
+        durationHead.child(selectedDurLabel);
+        durationSection.child(durationHead);
         FlowLayout dBtns = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         dBtns.gap(6);
         record Dur(String label, long secs) {}
         Dur[] durations = {new Dur("1 HOUR", 3600), new Dur("6 HOURS", 21600), new Dur("24 HOURS", 86400), new Dur("48 HOURS", 172800)};
+        List<ButtonComponent> durBtnList = new ArrayList<>();
         for (Dur d : durations) {
             long ds = d.secs();
-            dBtns.child(smallBtn(d.label(), 90, 30, 0xFF1B2A3B, 0xFF22354A, C_HAIR_HI, b -> {
+            String dl = d.label();
+            boolean isDefault = ds == 3600;
+            ButtonComponent durBtn = Components.button(Component.literal(dl), b -> {
                 durationSec[0] = ds;
-            }));
+                selectedDurLabel.text(Component.literal(dl));
+                // Update all button appearances
+                for (ButtonComponent ob : durBtnList) {
+                    boolean sel = ob == b;
+                    ob.renderer((ctx, rendered, delta) -> {
+                        int fill  = sel ? C_AMBER_DK : 0xFF1B2A3B;
+                        int hover = sel ? C_AMBER    : 0xFF22354A;
+                        int bord  = sel ? C_AMBER    : C_HAIR_HI;
+                        int col   = rendered.isHoveredOrFocused() ? hover : fill;
+                        ctx.fill(rendered.getX(), rendered.getY(), rendered.getX() + rendered.getWidth(), rendered.getY() + rendered.getHeight(), col);
+                        ctx.drawRectOutline(rendered.getX(), rendered.getY(), rendered.getWidth(), rendered.getHeight(), bord);
+                    });
+                }
+            });
+            durBtn.sizing(Sizing.fixed(90), Sizing.fixed(30));
+            final boolean sel = isDefault;
+            durBtn.renderer((ctx, rendered, delta) -> {
+                int fill  = sel ? C_AMBER_DK : 0xFF1B2A3B;
+                int hover = sel ? C_AMBER    : 0xFF22354A;
+                int bord  = sel ? C_AMBER    : C_HAIR_HI;
+                int col   = rendered.isHoveredOrFocused() ? hover : fill;
+                ctx.fill(rendered.getX(), rendered.getY(), rendered.getX() + rendered.getWidth(), rendered.getY() + rendered.getHeight(), col);
+                ctx.drawRectOutline(rendered.getX(), rendered.getY(), rendered.getWidth(), rendered.getHeight(), bord);
+            });
+            durBtnList.add(durBtn);
+            dBtns.child(durBtn);
         }
         durationSection.child(dBtns);
         panel.child(durationSection);

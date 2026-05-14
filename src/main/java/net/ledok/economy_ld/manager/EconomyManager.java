@@ -230,7 +230,8 @@ public final class EconomyManager {
             Long buyoutPrice,
             long expiresAt,
             int listingFeePercent,
-            int maxListings
+            int maxListings,
+            RegistryAccess registryAccess
     ) {
         return requireDatabase().placeAuction(
                 sellerUuid,
@@ -241,7 +242,8 @@ public final class EconomyManager {
                 buyoutPrice,
                 expiresAt,
                 listingFeePercent,
-                maxListings
+                maxListings,
+                registryAccess
         );
     }
 

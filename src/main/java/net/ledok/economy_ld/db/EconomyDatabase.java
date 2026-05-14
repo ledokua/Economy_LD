@@ -77,7 +77,8 @@ public interface EconomyDatabase {
             Long buyoutPrice,
             long expiresAt,
             int listingFeePercent,
-            int maxListings
+            int maxListings,
+            RegistryAccess registryAccess
     );
 
     CompletableFuture<Boolean> placeBid(UUID auctionId, UUID bidderUuid, String bidderName, long bidAmount);
