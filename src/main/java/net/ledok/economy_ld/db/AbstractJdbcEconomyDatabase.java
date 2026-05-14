@@ -1216,7 +1216,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                     FROM auctions a
                     LEFT JOIN wallets sw ON sw.uuid = a.seller_uuid
                     LEFT JOIN wallets bw ON bw.uuid = a.bidder_uuid
-                    WHERE """ + whereClause + " ORDER BY a.expires_at ASC";
+                    WHERE """ + " " + whereClause + " ORDER BY a.expires_at ASC";
             try (Connection conn = connection();
                  PreparedStatement ps = conn.prepareStatement(sql)) {
                 if (whereUuid != null) {
