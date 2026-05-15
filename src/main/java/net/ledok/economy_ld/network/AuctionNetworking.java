@@ -279,16 +279,8 @@ public final class AuctionNetworking {
                             itemName,
                             buyoutPrice
                     ));
-                    manager.claimPendingDeliveries(player.getUUID())
-                            .whenComplete((deliveries, claimError) -> player.server.execute(() -> {
-                                if (claimError != null) {
-                                    EconomyLdMod.LOGGER.warn("Failed to claim pending deliveries after buyout for {}",
-                                            player.getName().getString(), claimError);
-                                } else {
-                                    deliverPending(player, deliveries, manager);
-                                }
-                                syncAuctionsToAll(player.server);
-                            }));
+                    syncAuctionsToAll(player.server);
+                    syncInboxToPlayer(player);
                 }));
     }
 
@@ -338,16 +330,8 @@ public final class AuctionNetworking {
                             result.current().itemStack().getHoverName().getString(),
                             0L
                     ));
-                    manager.claimPendingDeliveries(player.getUUID())
-                            .whenComplete((deliveries, claimError) -> player.server.execute(() -> {
-                                if (claimError != null) {
-                                    EconomyLdMod.LOGGER.warn("Failed to claim pending deliveries after cancel for {}",
-                                            player.getName().getString(), claimError);
-                                } else {
-                                    deliverPending(player, deliveries, manager);
-                                }
-                                syncAuctionsToAll(player.server);
-                            }));
+                    syncAuctionsToAll(player.server);
+                    syncInboxToPlayer(player);
                 }));
     }
 
