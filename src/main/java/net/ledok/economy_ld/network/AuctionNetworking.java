@@ -25,9 +25,12 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 public final class AuctionNetworking {
     private AuctionNetworking() {
@@ -97,16 +100,20 @@ public final class AuctionNetworking {
 
     public static void syncAuctionsToAll(MinecraftServer server) {
         EconomyManager manager = EconomyManager.getInstance();
-        manager.getActiveAuctions(server.registryAccess())
-                .thenAccept(auctions -> server.execute(() ->
-                        server.getPlayerList().getPlayers().forEach(player ->
-                                manager.getBalance(player.getUUID(), player.getName().getString())
-                                        .thenAccept(balance -> server.execute(() ->
-                                                ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(
-                                                        auctions,
-                                                        balance,
-                                                        manager.getAuctionConfig_listingFeePercent()
-                                                )))))));
+        manager.getActiveAuctions(server.registryAccess()).thenAccept(auctions -> {
+            List<ServerPlayer> players = new ArrayList<>(server.getPlayerList().getPlayers());
+            List<CompletableFuture<Void>> futures = players.stream().map(player ->
+                    manager.getBalance(player.getUUID(), player.getName().getString())
+                            .thenAccept(balance -> server.execute(() ->
+                                    ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(
+                                            auctions,
+                                            balance,
+                                            manager.getAuctionConfig_listingFeePercent()
+                                    ))))
+            ).collect(Collectors.toList());
+            // Fire all in parallel; explicit aggregation keeps futures strongly referenced
+            CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
+        });
     }
 
     public static void syncInboxToPlayer(ServerPlayer player) {
@@ -380,10 +387,9 @@ public final class AuctionNetworking {
 
     private static void handleClaimInboxItem(ClaimInboxItemC2SPacket payload, ServerPlayer player) {
         EconomyManager manager = EconomyManager.getInstance();
-        manager.getPendingDeliveries(player.getUUID())
-                .thenCompose(deliveries -> {
-                    boolean belongsToPlayer = deliveries.stream().anyMatch(d -> d.id() == payload.deliveryId());
-                    if (!belongsToPlayer) {
+        manager.deliveryBelongsToPlayer(payload.deliveryId(), player.getUUID())
+                .thenCompose(belongs -> {
+                    if (!belongs) {
                         return java.util.concurrent.CompletableFuture.completedFuture(Optional.<PendingDelivery>empty());
                     }
                     return manager.claimSingleDelivery(payload.deliveryId());

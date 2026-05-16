@@ -1118,6 +1118,23 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     }
 
     @Override
+    public CompletableFuture<Boolean> deliveryBelongsToPlayer(long deliveryId, UUID playerUuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement(
+                         "SELECT COUNT(*) AS cnt FROM pending_deliveries WHERE id = ? AND player_uuid = ?")) {
+                ps.setLong(1, deliveryId);
+                ps.setString(2, playerUuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() && rs.getInt("cnt") > 0;
+                }
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to validate delivery ownership", e);
+            }
+        }, executor);
+    }
+
+    @Override
     public CompletableFuture<Optional<PendingDelivery>> claimSingleDelivery(long deliveryId) {
         return CompletableFuture.supplyAsync(() -> {
             long now = System.currentTimeMillis() / 1000L;
@@ -1260,6 +1277,24 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                 throw new RuntimeException("Failed to read auction listing limit bonus", e);
             }
             return Math.max(1, defaultLimit + bonus);
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Integer> getAuctionBonusLimit(UUID playerUuid) {
+        return CompletableFuture.supplyAsync(() -> {
+            try (Connection conn = connection();
+                 PreparedStatement ps = conn.prepareStatement("SELECT bonus FROM player_auction_limits WHERE uuid = ?")) {
+                ps.setString(1, playerUuid.toString());
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return Math.max(0, rs.getInt("bonus"));
+                    }
+                }
+                return 0;
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to read auction bonus limit", e);
+            }
         }, executor);
     }
 

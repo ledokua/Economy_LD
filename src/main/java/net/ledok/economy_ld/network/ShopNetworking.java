@@ -116,20 +116,21 @@ public final class ShopNetworking {
                             }
                             listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing -> {
                                 int quantity = Math.max(1, payload.quantity());
-                                int removed = removeMatchingItems(context.player(), listing.itemStack(), quantity);
-                                if (removed < quantity) {
-                                    if (removed > 0) {
-                                        ItemStack rollback = listing.itemStack().copyWithCount(removed);
-                                        context.player().getInventory().add(rollback);
-                                    }
+                                int available = countMatchingItems(context.player(), listing.itemStack());
+                                if (available < quantity) {
+                                    sendActionResult(context.player(), new ShopActionResultS2CPacket(
+                                            ShopActionResultS2CPacket.ActionType.SHOP_FULL,
+                                            listing.itemStack().getHoverName().getString(),
+                                            quantity,
+                                            0L,
+                                            0L
+                                    ));
                                     return;
                                 }
 
                                 EconomyManager.getInstance().sellItem(listing.id(), context.player().getUUID(), context.player().getName().getString(), quantity)
                                         .whenComplete((success, err2) -> context.server().execute(() -> {
                                             if (err2 != null || !Boolean.TRUE.equals(success)) {
-                                                ItemStack rollback = listing.itemStack().copyWithCount(quantity);
-                                                context.player().getInventory().add(rollback);
                                                 sendActionResult(context.player(), new ShopActionResultS2CPacket(
                                                         ShopActionResultS2CPacket.ActionType.SHOP_FULL,
                                                         listing.itemStack().getHoverName().getString(),
@@ -138,6 +139,10 @@ public final class ShopNetworking {
                                                         0L
                                                 ));
                                                 return;
+                                            }
+                                            int removed = removeMatchingItems(context.player(), listing.itemStack(), quantity);
+                                            if (removed < quantity && removed > 0) {
+                                                context.player().getInventory().add(listing.itemStack().copyWithCount(removed));
                                             }
                                             sendActionResult(context.player(), new ShopActionResultS2CPacket(
                                                     ShopActionResultS2CPacket.ActionType.SOLD,
@@ -354,6 +359,37 @@ public final class ShopNetworking {
 
     private static ShopBrowseScreenHandler activeMenu(ServerPlayer player) {
         return player.containerMenu instanceof ShopBrowseScreenHandler handler ? handler : null;
+    }
+
+    private static int countMatchingItems(ServerPlayer player, ItemStack template) {
+        ItemStack normalizedTemplate;
+        try {
+            String encoded = ItemStackSerializationUtil.toBase64(template, player.registryAccess());
+            normalizedTemplate = ItemStackSerializationUtil.fromBase64(encoded, player.registryAccess());
+        } catch (Exception e) {
+            EconomyLdMod.LOGGER.warn("Failed to normalize template for counting, falling back to original", e);
+            normalizedTemplate = template;
+        }
+
+        int available = 0;
+        for (int i = 0; i < player.getInventory().getContainerSize(); i++) {
+            ItemStack stack = player.getInventory().getItem(i);
+            if (stack.isEmpty()) {
+                continue;
+            }
+            ItemStack normalizedStack;
+            try {
+                String encoded = ItemStackSerializationUtil.toBase64(stack.copyWithCount(1), player.registryAccess());
+                normalizedStack = ItemStackSerializationUtil.fromBase64(encoded, player.registryAccess());
+            } catch (Exception e) {
+                continue;
+            }
+            if (!ItemStack.isSameItemSameComponents(normalizedStack, normalizedTemplate)) {
+                continue;
+            }
+            available += stack.getCount();
+        }
+        return available;
     }
 
     private static int removeMatchingItems(ServerPlayer player, ItemStack template, int wanted) {

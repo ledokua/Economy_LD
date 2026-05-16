@@ -279,6 +279,10 @@ public final class EconomyManager {
         return requireDatabase().getPendingDeliveries(playerUuid);
     }
 
+    public CompletableFuture<Boolean> deliveryBelongsToPlayer(long deliveryId, UUID playerUuid) {
+        return requireDatabase().deliveryBelongsToPlayer(deliveryId, playerUuid);
+    }
+
     public CompletableFuture<Optional<PendingDelivery>> claimSingleDelivery(long deliveryId) {
         return requireDatabase().claimSingleDelivery(deliveryId);
     }
@@ -293,6 +297,10 @@ public final class EconomyManager {
 
     public CompletableFuture<Integer> getEffectiveListingLimit(UUID playerUuid, int defaultLimit) {
         return requireDatabase().getEffectiveListingLimit(playerUuid, defaultLimit);
+    }
+
+    public CompletableFuture<Integer> getAuctionBonusLimit(UUID playerUuid) {
+        return requireDatabase().getAuctionBonusLimit(playerUuid);
     }
 
     public CompletableFuture<Void> setAuctionBonusLimit(UUID playerUuid, int bonus) {

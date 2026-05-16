@@ -243,6 +243,7 @@ public final class AuctionCommand {
                     }
                     source.sendSuccess(() -> Component.literal("Cancelled auction " + result.auction().id().toString().substring(0, 8) + "."), true);
                     AuctionNetworking.syncAuctionsToAll(source.getServer());
+                    AuctionNetworking.syncInboxToPlayer(player);
                 }));
         return 1;
     }
@@ -306,13 +307,14 @@ public final class AuctionCommand {
 
     private static int bonusGet(CommandSourceStack source, String playerName) {
         resolveKnownPlayer(source, playerName)
-                .thenCompose(target -> EconomyManager.getInstance().getEffectiveListingLimit(
-                                target.uuid(),
-                                EconomyManager.getInstance().getAuctionConfig_defaultMaxListings())
-                        .thenApply(effective -> new BonusResult(
-                                target,
-                                Math.max(0, effective - EconomyManager.getInstance().getAuctionConfig_defaultMaxListings()),
-                                effective)))
+                .thenCompose(target -> {
+                    int defaultLimit = EconomyManager.getInstance().getAuctionConfig_defaultMaxListings();
+                    return EconomyManager.getInstance().getAuctionBonusLimit(target.uuid())
+                            .thenCombine(
+                                    EconomyManager.getInstance().getEffectiveListingLimit(target.uuid(), defaultLimit),
+                                    (bonus, effective) -> new BonusResult(target, bonus, effective)
+                            );
+                })
                 .whenComplete((result, error) -> source.getServer().execute(() -> {
                     if (error != null || result == null) {
                         source.sendFailure(Component.literal("Failed to get bonus listing limit: " + errorMessage(error)));
@@ -321,6 +323,7 @@ public final class AuctionCommand {
                     source.sendSuccess(() -> Component.literal(
                             result.player().username() + ": bonus=" + result.bonus()
                                     + ", effective limit=" + result.effectiveLimit()
+                                    + " (default: " + EconomyManager.getInstance().getAuctionConfig_defaultMaxListings() + ")"
                     ), false);
                 }));
         return 1;
