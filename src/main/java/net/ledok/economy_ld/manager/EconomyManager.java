@@ -275,10 +275,6 @@ public final class EconomyManager {
         return requireDatabase().processExpiredAuctions(serverTaxPercent, registryAccess);
     }
 
-    public CompletableFuture<List<PendingDelivery>> claimPendingDeliveries(UUID playerUuid) {
-        return requireDatabase().claimPendingDeliveries(playerUuid);
-    }
-
     public CompletableFuture<List<PendingDelivery>> getPendingDeliveries(UUID playerUuid) {
         return requireDatabase().getPendingDeliveries(playerUuid);
     }

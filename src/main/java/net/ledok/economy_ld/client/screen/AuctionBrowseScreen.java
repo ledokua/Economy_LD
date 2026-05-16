@@ -817,10 +817,21 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         panel.child(card);
 
         // Fields row 1: start price + buyout
+        // Fee label — defined before fields so updateFee can be passed as callback
+        LabelComponent feeLabel = tint("Set a start price to see the listing fee.", C_INK_DIM);
+        Runnable updateFee = () -> {
+            long price = parseLong(startPriceVal[0], 0);
+            if (price > 0) {
+                feeLabel.text(Component.literal("Listing fee will be deducted at listing time."));
+            } else {
+                feeLabel.text(Component.literal("Set a start price to see the listing fee."));
+            }
+        };
+
         FlowLayout row1 = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         row1.gap(12);
         row1.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
-        buildField(row1, "START PRICE", "opening bid", "100", "LC", startPriceVal, true);
+        buildField(row1, "START PRICE", "opening bid", "100", "LC", startPriceVal, true, updateFee);
         buildField(row1, "BUYOUT PRICE", "0 = no buyout", "0", "LC", buyoutVal, false);
         panel.child(row1);
 
@@ -881,20 +892,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         }
         durationSection.child(dBtns);
         panel.child(durationSection);
-
-        // Fee preview — updates live as start price changes
-        LabelComponent feeLabel = tint("Listing fee: — LC", C_INK_DIM);
         panel.child(feeLabel);
-        Runnable updateFee = () -> {
-            long price = parseLong(startPriceVal[0], 0);
-            // We don't have the fee % client-side, so show a note
-            // The actual deduction happens server-side; just show the formula
-            if (price > 0) {
-                feeLabel.text(Component.literal("Listing fee will be deducted at listing time."));
-            } else {
-                feeLabel.text(Component.literal("Set a start price to see the listing fee."));
-            }
-        };
 
         // Error label
         LabelComponent errLabel = tint("", C_RED);

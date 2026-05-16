@@ -95,8 +95,6 @@ public interface EconomyDatabase {
 
     CompletableFuture<List<UUID>> processExpiredAuctions(int serverTaxPercent, RegistryAccess registryAccess);
 
-    CompletableFuture<List<PendingDelivery>> claimPendingDeliveries(UUID playerUuid);
-
     CompletableFuture<List<PendingDelivery>> getPendingDeliveries(UUID playerUuid);
 
     CompletableFuture<Optional<PendingDelivery>> claimSingleDelivery(long deliveryId);

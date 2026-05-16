@@ -295,6 +295,26 @@ public final class AuctionNetworking {
                             notifyInboxUpdate(sellerOnline);
                         }
                     }
+
+                    if (result.current() != null && result.current().bidderUuid() != null) {
+                        UUID prevBidder = result.current().bidderUuid();
+                        if (!prevBidder.equals(player.getUUID())) {
+                            ServerPlayer prevBidderOnline = player.server.getPlayerList().getPlayer(prevBidder);
+                            if (prevBidderOnline != null) {
+                                sendActionResult(prevBidderOnline, new AuctionActionResultS2CPacket(
+                                        AuctionActionResultS2CPacket.ActionType.OUTBID,
+                                        result.current().itemStack().getHoverName().getString(),
+                                        result.current().currentBid()
+                                ));
+                                prevBidderOnline.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                                        "Your bid on " + result.current().itemStack().getHoverName().getString() +
+                                                " was displaced - the auction was bought out. Your " +
+                                                String.format("%,d", result.current().currentBid()) + " LC has been refunded."
+                                ));
+                                syncInboxToPlayer(prevBidderOnline);
+                            }
+                        }
+                    }
                 }));
     }
 

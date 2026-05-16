@@ -1018,115 +1018,68 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
         return CompletableFuture.supplyAsync(() -> {
             int normalizedTax = Math.max(0, Math.min(100, serverTaxPercent));
             long now = System.currentTimeMillis() / 1000L;
-            Set<UUID> affected = new LinkedHashSet<>();
-            try (Connection conn = connection()) {
-                conn.setAutoCommit(false);
-                try (PreparedStatement ps = conn.prepareStatement("""
-                        SELECT id, seller_uuid, item_nbt, quantity, current_bid, bidder_uuid
-                        FROM auctions
-                        WHERE status = 'ACTIVE' AND expires_at <= ?
-                        """)) {
-                    ps.setLong(1, now);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        while (rs.next()) {
-                            UUID auctionId = UUID.fromString(rs.getString("id"));
-                            UUID sellerUuid = UUID.fromString(rs.getString("seller_uuid"));
-                            String itemNbt = rs.getString("item_nbt");
-                            int quantity = Math.max(1, rs.getInt("quantity"));
-                            long currentBid = rs.getLong("current_bid");
-                            String bidderRaw = rs.getString("bidder_uuid");
+            Set<UUID> allAffected = new LinkedHashSet<>();
+            int processedCount;
+            do {
+                processedCount = 0;
+                try (Connection conn = connection()) {
+                    conn.setAutoCommit(false);
+                    try (PreparedStatement ps = conn.prepareStatement("""
+                            SELECT id, seller_uuid, item_nbt, quantity, current_bid, bidder_uuid
+                            FROM auctions
+                            WHERE status = 'ACTIVE' AND expires_at <= ?
+                            LIMIT 50
+                            """)) {
+                        ps.setLong(1, now);
+                        try (ResultSet rs = ps.executeQuery()) {
+                            while (rs.next()) {
+                                processedCount++;
+                                UUID auctionId = UUID.fromString(rs.getString("id"));
+                                UUID sellerUuid = UUID.fromString(rs.getString("seller_uuid"));
+                                String itemNbt = rs.getString("item_nbt");
+                                int quantity = Math.max(1, rs.getInt("quantity"));
+                                long currentBid = rs.getLong("current_bid");
+                                String bidderRaw = rs.getString("bidder_uuid");
 
-                            if (bidderRaw == null || bidderRaw.isBlank()) {
-                                enqueuePendingItem(conn, sellerUuid, itemNbt, quantity, "AUCTION_EXPIRED_RETURN");
-                                affected.add(sellerUuid);
+                                if (bidderRaw == null || bidderRaw.isBlank()) {
+                                    enqueuePendingItem(conn, sellerUuid, itemNbt, quantity, "AUCTION_EXPIRED_RETURN");
+                                    allAffected.add(sellerUuid);
+                                    try (PreparedStatement update = conn.prepareStatement("UPDATE auctions SET status = ? WHERE id = ?")) {
+                                        update.setString(1, "EXPIRED");
+                                        update.setString(2, auctionId.toString());
+                                        update.executeUpdate();
+                                    }
+                                    continue;
+                                }
+
+                                UUID bidderUuid = UUID.fromString(bidderRaw);
+                                long tax = (currentBid * normalizedTax) / 100L;
+                                long payout = Math.max(0L, currentBid - tax);
+                                if (payout > 0) {
+                                    enqueuePendingLc(conn, sellerUuid, payout, "AUCTION_SOLD_PAYOUT");
+                                }
+                                allAffected.add(sellerUuid);
+                                enqueuePendingItem(conn, bidderUuid, itemNbt, quantity, "AUCTION_WON_ITEM");
+                                allAffected.add(bidderUuid);
                                 try (PreparedStatement update = conn.prepareStatement("UPDATE auctions SET status = ? WHERE id = ?")) {
-                                    update.setString(1, "EXPIRED");
+                                    update.setString(1, "SOLD");
                                     update.setString(2, auctionId.toString());
                                     update.executeUpdate();
                                 }
-                                continue;
-                            }
-
-                            UUID bidderUuid = UUID.fromString(bidderRaw);
-                            long tax = (currentBid * normalizedTax) / 100L;
-                            long payout = Math.max(0L, currentBid - tax);
-                            if (payout > 0) {
-                                enqueuePendingLc(conn, sellerUuid, payout, "AUCTION_SOLD_PAYOUT");
-                            }
-                            affected.add(sellerUuid);
-                            enqueuePendingItem(conn, bidderUuid, itemNbt, quantity, "AUCTION_WON_ITEM");
-                            affected.add(bidderUuid);
-                            try (PreparedStatement update = conn.prepareStatement("UPDATE auctions SET status = ? WHERE id = ?")) {
-                                update.setString(1, "SOLD");
-                                update.setString(2, auctionId.toString());
-                                update.executeUpdate();
                             }
                         }
+                        conn.commit();
+                    } catch (Exception e) {
+                        conn.rollback();
+                        throw e;
+                    } finally {
+                        conn.setAutoCommit(true);
                     }
-                    conn.commit();
-                    return new ArrayList<>(affected);
                 } catch (Exception e) {
-                    conn.rollback();
-                    throw e;
-                } finally {
-                    conn.setAutoCommit(true);
+                    throw new RuntimeException("Failed to process expired auctions", e);
                 }
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to process expired auctions", e);
-            }
-        }, executor);
-    }
-
-    @Override
-    public CompletableFuture<List<PendingDelivery>> claimPendingDeliveries(UUID playerUuid) {
-        return CompletableFuture.supplyAsync(() -> {
-            List<PendingDelivery> deliveries = new ArrayList<>();
-            long now = System.currentTimeMillis() / 1000L;
-            try (Connection conn = connection()) {
-                conn.setAutoCommit(false);
-                try (PreparedStatement ps = conn.prepareStatement("""
-                        SELECT id, item_nbt, quantity, lc_amount, reason, expires_at
-                        FROM pending_deliveries
-                        WHERE player_uuid = ?
-                          AND (expires_at <= 0 OR expires_at >= ?)
-                        ORDER BY id ASC
-                        """)) {
-                    ps.setString(1, playerUuid.toString());
-                    ps.setLong(2, now);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        while (rs.next()) {
-                            long id = rs.getLong("id");
-                            String itemNbt = rs.getString("item_nbt");
-                            ItemStack stack = itemNbt == null ? null : ItemStackSerializationUtil.fromBase64(itemNbt);
-                            int quantity = Math.max(0, rs.getInt("quantity"));
-                            Long lcAmount = rs.getObject("lc_amount") == null ? null : rs.getLong("lc_amount");
-                            String reason = rs.getString("reason");
-                            long expiresAt = rs.getLong("expires_at");
-                            deliveries.add(new PendingDelivery(id, playerUuid, stack, quantity, lcAmount, reason, expiresAt));
-                        }
-                    }
-                    try (PreparedStatement deleteExpired = conn.prepareStatement(
-                            "DELETE FROM pending_deliveries WHERE expires_at > 0 AND expires_at < ?")) {
-                        deleteExpired.setLong(1, now);
-                        deleteExpired.executeUpdate();
-                    }
-                    try (PreparedStatement delete = conn.prepareStatement(
-                            "DELETE FROM pending_deliveries WHERE player_uuid = ? AND (expires_at <= 0 OR expires_at >= ?)")) {
-                        delete.setString(1, playerUuid.toString());
-                        delete.setLong(2, now);
-                        delete.executeUpdate();
-                    }
-                    conn.commit();
-                    return deliveries;
-                } catch (Exception e) {
-                    conn.rollback();
-                    throw e;
-                } finally {
-                    conn.setAutoCommit(true);
-                }
-            } catch (Exception e) {
-                throw new RuntimeException("Failed to claim pending deliveries", e);
-            }
+            } while (processedCount == 50);
+            return new ArrayList<>(allAffected);
         }, executor);
     }
 
