@@ -271,7 +271,7 @@ public final class EconomyManager {
         return requireDatabase().getPlayerBids(bidderUuid, registryAccess);
     }
 
-    public CompletableFuture<Void> processExpiredAuctions(int serverTaxPercent, RegistryAccess registryAccess) {
+    public CompletableFuture<List<UUID>> processExpiredAuctions(int serverTaxPercent, RegistryAccess registryAccess) {
         return requireDatabase().processExpiredAuctions(serverTaxPercent, registryAccess);
     }
 

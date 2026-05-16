@@ -280,7 +280,14 @@ public final class AuctionNetworking {
                             buyoutPrice
                     ));
                     syncAuctionsToAll(player.server);
-                    syncInboxToPlayer(player);
+                    notifyInboxUpdate(player);
+
+                    if (result.current() != null && result.current().sellerUuid() != null) {
+                        ServerPlayer sellerOnline = player.server.getPlayerList().getPlayer(result.current().sellerUuid());
+                        if (sellerOnline != null && !sellerOnline.getUUID().equals(player.getUUID())) {
+                            notifyInboxUpdate(sellerOnline);
+                        }
+                    }
                 }));
     }
 
@@ -373,6 +380,18 @@ public final class AuctionNetworking {
 
     private static void sendActionResult(ServerPlayer player, AuctionActionResultS2CPacket packet) {
         ServerPlayNetworking.send(player, packet);
+    }
+
+    private static void notifyInboxUpdate(ServerPlayer player) {
+        syncInboxToPlayer(player);
+        player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
+                "📦 Your item has been sent to your auction inbox! Use /ah inbox to claim it."
+        ));
+        sendActionResult(player, new AuctionActionResultS2CPacket(
+                AuctionActionResultS2CPacket.ActionType.ITEM_SENT_TO_INBOX,
+                "",
+                0L
+        ));
     }
 
     private static Long normalizeBuyout(Long rawBuyout, long startPrice, boolean buyoutEnabled) {

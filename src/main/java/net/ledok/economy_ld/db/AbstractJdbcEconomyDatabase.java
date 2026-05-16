@@ -17,9 +17,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -1012,10 +1014,11 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     }
 
     @Override
-    public CompletableFuture<Void> processExpiredAuctions(int serverTaxPercent, RegistryAccess registryAccess) {
-        return CompletableFuture.runAsync(() -> {
+    public CompletableFuture<List<UUID>> processExpiredAuctions(int serverTaxPercent, RegistryAccess registryAccess) {
+        return CompletableFuture.supplyAsync(() -> {
             int normalizedTax = Math.max(0, Math.min(100, serverTaxPercent));
             long now = System.currentTimeMillis() / 1000L;
+            Set<UUID> affected = new LinkedHashSet<>();
             try (Connection conn = connection()) {
                 conn.setAutoCommit(false);
                 try (PreparedStatement ps = conn.prepareStatement("""
@@ -1035,6 +1038,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
 
                             if (bidderRaw == null || bidderRaw.isBlank()) {
                                 enqueuePendingItem(conn, sellerUuid, itemNbt, quantity, "AUCTION_EXPIRED_RETURN");
+                                affected.add(sellerUuid);
                                 try (PreparedStatement update = conn.prepareStatement("UPDATE auctions SET status = ? WHERE id = ?")) {
                                     update.setString(1, "EXPIRED");
                                     update.setString(2, auctionId.toString());
@@ -1049,7 +1053,9 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                             if (payout > 0) {
                                 enqueuePendingLc(conn, sellerUuid, payout, "AUCTION_SOLD_PAYOUT");
                             }
+                            affected.add(sellerUuid);
                             enqueuePendingItem(conn, bidderUuid, itemNbt, quantity, "AUCTION_WON_ITEM");
+                            affected.add(bidderUuid);
                             try (PreparedStatement update = conn.prepareStatement("UPDATE auctions SET status = ? WHERE id = ?")) {
                                 update.setString(1, "SOLD");
                                 update.setString(2, auctionId.toString());
@@ -1058,6 +1064,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                         }
                     }
                     conn.commit();
+                    return new ArrayList<>(affected);
                 } catch (Exception e) {
                     conn.rollback();
                     throw e;

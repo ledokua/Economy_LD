@@ -93,7 +93,7 @@ public interface EconomyDatabase {
 
     CompletableFuture<List<AuctionRecord>> getPlayerBids(UUID bidderUuid, RegistryAccess registryAccess);
 
-    CompletableFuture<Void> processExpiredAuctions(int serverTaxPercent, RegistryAccess registryAccess);
+    CompletableFuture<List<UUID>> processExpiredAuctions(int serverTaxPercent, RegistryAccess registryAccess);
 
     CompletableFuture<List<PendingDelivery>> claimPendingDeliveries(UUID playerUuid);
 

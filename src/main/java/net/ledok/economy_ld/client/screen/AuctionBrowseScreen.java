@@ -926,6 +926,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
             case BID_PLACED -> { side = 0xFF4A90D8; titleC = 0xFF7AB8F0; title = "BID PLACED"; body = "Bid of " + String.format("%,d", r.lcAmount()) + " LC on " + r.itemName(); }
             case OUTBID -> { side = C_AMBER; titleC = C_AMBER; title = "OUTBID"; body = "You were outbid on " + r.itemName() + "."; }
             case BUYOUT -> { side = C_AMBER; titleC = C_AMBER; title = "BOUGHT"; body = "Won " + r.itemName() + " for " + String.format("%,d", r.lcAmount()) + " LC"; }
+            case ITEM_SENT_TO_INBOX -> { side = C_AMBER; titleC = C_AMBER; title = "ITEM SENT TO INBOX"; body = "Open /ah inbox to collect your item."; }
             case CANCELLED -> { side = C_INK_MID; titleC = C_INK_MID; title = "CANCELLED"; body = r.itemName() + " listing cancelled."; }
             case INSUFFICIENT_FUNDS -> { side = C_RED; titleC = 0xFFE88080; title = "INSUFFICIENT FUNDS"; body = "Need " + String.format("%,d", r.lcAmount()) + " LC."; }
             case NOT_ENOUGH_ITEMS -> { side = C_RED; titleC = 0xFFE88080; title = "NOT ENOUGH ITEMS"; body = "You don't have enough " + r.itemName() + " in your inventory."; }
