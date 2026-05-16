@@ -71,6 +71,7 @@ public final class AuctionNetworking {
         ClientPlayNetworking.registerGlobalReceiver(AuctionListSyncS2CPacket.TYPE, (payload, context) -> {
             AuctionClientState.setAuctions(payload.auctions());
             AuctionClientState.setPlayerBalance(payload.playerBalance());
+            AuctionClientState.setListingFeePercent(payload.listingFeePercent());
         });
         ClientPlayNetworking.registerGlobalReceiver(AuctionActionResultS2CPacket.TYPE, (payload, context) ->
                 AuctionClientState.setLastResult(payload));
@@ -87,7 +88,11 @@ public final class AuctionNetworking {
         manager.getActiveAuctions(player.server.registryAccess())
                 .thenAccept(auctions -> manager.getBalance(player.getUUID(), player.getName().getString())
                         .thenAccept(balance -> player.server.execute(() ->
-                                ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(auctions, balance)))));
+                                ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(
+                                        auctions,
+                                        balance,
+                                        manager.getAuctionConfig_listingFeePercent()
+                                )))));
     }
 
     public static void syncAuctionsToAll(MinecraftServer server) {
@@ -97,7 +102,11 @@ public final class AuctionNetworking {
                         server.getPlayerList().getPlayers().forEach(player ->
                                 manager.getBalance(player.getUUID(), player.getName().getString())
                                         .thenAccept(balance -> server.execute(() ->
-                                                ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(auctions, balance)))))));
+                                                ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(
+                                                        auctions,
+                                                        balance,
+                                                        manager.getAuctionConfig_listingFeePercent()
+                                                )))))));
     }
 
     public static void syncInboxToPlayer(ServerPlayer player) {

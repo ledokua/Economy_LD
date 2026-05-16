@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
-public record AuctionListSyncS2CPacket(List<AuctionRecord> auctions, long playerBalance) implements CustomPacketPayload {
+public record AuctionListSyncS2CPacket(List<AuctionRecord> auctions, long playerBalance, int listingFeePercent) implements CustomPacketPayload {
     public static final Type<AuctionListSyncS2CPacket> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(EconomyLdMod.MOD_ID, "auction_list_sync")
     );
@@ -48,6 +48,7 @@ public record AuctionListSyncS2CPacket(List<AuctionRecord> auctions, long player
             buf.writeUtf(auction.status(), 16);
         }
         buf.writeLong(payload.playerBalance());
+        buf.writeInt(payload.listingFeePercent());
     }
 
     private static AuctionListSyncS2CPacket read(RegistryFriendlyByteBuf buf) {
@@ -83,7 +84,8 @@ public record AuctionListSyncS2CPacket(List<AuctionRecord> auctions, long player
             ));
         }
         long balance = buf.readLong();
-        return new AuctionListSyncS2CPacket(auctions, balance);
+        int fee = buf.readInt();
+        return new AuctionListSyncS2CPacket(auctions, balance, fee);
     }
 
     private static void writeNullableLong(RegistryFriendlyByteBuf buf, Long value) {

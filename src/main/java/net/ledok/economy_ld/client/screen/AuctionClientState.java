@@ -16,6 +16,7 @@ public final class AuctionClientState {
     private static final AtomicReference<AuctionActionResultS2CPacket> LAST_RESULT = new AtomicReference<>(null);
     private static final AtomicInteger OPEN_VERSION = new AtomicInteger(0);
     private static final java.util.concurrent.atomic.AtomicLong PLAYER_BALANCE = new java.util.concurrent.atomic.AtomicLong(0L);
+    private static final AtomicInteger LISTING_FEE_PERCENT = new AtomicInteger(5);
 
     private AuctionClientState() {
     }
@@ -32,6 +33,14 @@ public final class AuctionClientState {
 
     public static long getPlayerBalance() {
         return PLAYER_BALANCE.get();
+    }
+
+    public static void setListingFeePercent(int percent) {
+        LISTING_FEE_PERCENT.set(percent);
+    }
+
+    public static int getListingFeePercent() {
+        return LISTING_FEE_PERCENT.get();
     }
 
     public static List<AuctionRecord> getAuctions() {
