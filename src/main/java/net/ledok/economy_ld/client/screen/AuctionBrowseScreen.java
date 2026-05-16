@@ -822,7 +822,12 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         Runnable updateFee = () -> {
             long price = parseLong(startPriceVal[0], 0);
             if (price > 0) {
-                feeLabel.text(Component.literal("Listing fee will be deducted at listing time."));
+                int feePercent = AuctionClientState.getListingFeePercent();
+                long feeAmount = (price * feePercent) / 100L;
+                feeLabel.text(Component.literal(
+                        "Listing fee: " + String.format("%,d", feeAmount) + " LC (" + feePercent + "%)" +
+                                " — deducted from your wallet at listing time."
+                ));
             } else {
                 feeLabel.text(Component.literal("Set a start price to see the listing fee."));
             }
