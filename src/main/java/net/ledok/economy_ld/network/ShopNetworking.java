@@ -161,27 +161,27 @@ public final class ShopNetworking {
         ServerPlayNetworking.registerGlobalReceiver(AddListingC2SPacket.TYPE, (payload, context) -> {
             ShopBrowseScreenHandler menu = activeMenu(context.player());
             if (menu == null || !menu.isOwnerOrOperator()) {
-                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot add listing: not owner/admin or wrong menu.")));
+                context.server().execute(() -> context.player().sendSystemMessage(Component.translatable("economy_ld.shop.listing.add.error.not_owner")));
                 return;
             }
             ItemStack item = ItemStack.parseOptional(context.player().registryAccess(), payload.itemNbt());
             if (item.isEmpty()) {
-                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot add listing: item payload was empty.")));
+                context.server().execute(() -> context.player().sendSystemMessage(Component.translatable("economy_ld.shop.listing.add.error.empty_item")));
                 return;
             }
             Long buy = normalizePrice(payload.priceBuy());
             Long sell = normalizePrice(payload.priceSell());
             if (buy == null && sell == null) {
-                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot add listing: set at least one price above 0.")));
+                context.server().execute(() -> context.player().sendSystemMessage(Component.translatable("economy_ld.shop.listing.add.error.no_price")));
                 return;
             }
             EconomyManager.getInstance().addListing(menu.getShopId(), item, buy, sell, payload.perOp(), payload.buyCap())
                     .whenComplete((ignored, error) -> context.server().execute(() -> {
                         if (error != null) {
-                            context.player().sendSystemMessage(Component.literal("Cannot add listing: " + error.getMessage()));
+                            context.player().sendSystemMessage(Component.translatable("economy_ld.shop.listing.add.error.failed", error.getMessage()));
                             return;
                         }
-                        context.player().sendSystemMessage(Component.literal("Listing added."));
+                        context.player().sendSystemMessage(Component.translatable("economy_ld.shop.listing.add.success"));
                         syncShop(context.player(), menu.getShopId(), menu.isAdminShop(), menu.isOwnerOrOperator());
                     }));
         });
@@ -194,7 +194,7 @@ public final class ShopNetworking {
             Long buy = normalizePrice(payload.priceBuy());
             Long sell = normalizePrice(payload.priceSell());
             if (buy == null && sell == null) {
-                context.server().execute(() -> context.player().sendSystemMessage(Component.literal("Cannot update listing: set at least one price above 0.")));
+                context.server().execute(() -> context.player().sendSystemMessage(Component.translatable("economy_ld.shop.listing.update.error.no_price")));
                 return;
             }
             EconomyManager.getInstance().getListings(menu.getShopId()).whenComplete((listings, error) -> {

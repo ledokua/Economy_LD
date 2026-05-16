@@ -16,6 +16,7 @@ import net.ledok.economy_ld.network.AuctionNetworking;
 import net.ledok.economy_ld.network.ShopNetworking;
 import net.ledok.economy_ld.screen.ModMenus;
 import net.ledok.economy_ld.util.ServerRegistryAccess;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,9 +54,7 @@ public class EconomyLdMod implements ModInitializer {
                         boolean expiringSoon = deliveries.stream()
                                 .anyMatch(d -> d.expiresAt() > 0L && d.expiresAt() < now + 86400L);
                         if (expiringSoon) {
-                            player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                                    "⚠ You have items in your auction inbox expiring within 24 hours! Use /ah inbox to claim them."
-                            ));
+                            player.sendSystemMessage(Component.translatable("economy_ld.auction.inbox.expiring_soon"));
                         }
                     }));
             AuctionNetworking.syncInboxToPlayer(player);

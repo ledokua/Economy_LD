@@ -96,7 +96,7 @@ public final class AuctionCommand {
         try {
             player = source.getPlayerOrException();
         } catch (Exception e) {
-            source.sendFailure(Component.literal("Only players can use /ah."));
+            source.sendFailure(Component.translatable("economy_ld.command.ah.players_only"));
             return 0;
         }
 
@@ -110,7 +110,7 @@ public final class AuctionCommand {
         try {
             player = source.getPlayerOrException();
         } catch (Exception e) {
-            source.sendFailure(Component.literal("Only players can use /ah sell."));
+            source.sendFailure(Component.translatable("economy_ld.command.ah.sell.players_only"));
             return 0;
         }
         ServerPlayNetworking.send(player, new OpenAuctionScreenS2CPacket());
@@ -123,7 +123,7 @@ public final class AuctionCommand {
         try {
             player = source.getPlayerOrException();
         } catch (Exception e) {
-            source.sendFailure(Component.literal("Only players can use /ah inbox."));
+            source.sendFailure(Component.translatable("economy_ld.command.ah.inbox.players_only"));
             return 0;
         }
 
@@ -137,30 +137,31 @@ public final class AuctionCommand {
         try {
             player = source.getPlayerOrException();
         } catch (Exception e) {
-            source.sendFailure(Component.literal("Only players can use /ah list."));
+            source.sendFailure(Component.translatable("economy_ld.command.ah.list.players_only"));
             return 0;
         }
 
         EconomyManager.getInstance().getPlayerAuctions(player.getUUID(), source.getServer().registryAccess())
                 .whenComplete((auctions, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Failed to load your active listings."));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.list.error"));
                         return;
                     }
                     if (auctions == null || auctions.isEmpty()) {
-                        source.sendSuccess(() -> Component.literal("You have no active auction listings."), false);
+                        source.sendSuccess(() -> Component.translatable("economy_ld.command.ah.list.empty"), false);
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal("Your active listings:"), false);
+                    source.sendSuccess(() -> Component.translatable("economy_ld.command.ah.list.header"), false);
                     long now = System.currentTimeMillis() / 1000L;
                     for (AuctionRecord auction : auctions) {
                         String shortId = auction.id().toString().substring(0, 8);
                         long price = auction.currentBid();
-                        source.sendSuccess(() -> Component.literal(
-                                "[" + shortId + "] "
-                                        + auction.itemStack().getHoverName().getString()
-                                        + " - current bid: " + CurrencyFormatter.format(price)
-                                        + " - expires in " + formatDuration(Math.max(0L, auction.expiresAt() - now))
+                        source.sendSuccess(() -> Component.translatable(
+                                "economy_ld.command.ah.list.row",
+                                shortId,
+                                auction.itemStack().getHoverName().getString(),
+                                CurrencyFormatter.format(price),
+                                formatDuration(Math.max(0L, auction.expiresAt() - now))
                         ), false);
                     }
                 }));
@@ -172,29 +173,30 @@ public final class AuctionCommand {
         try {
             player = source.getPlayerOrException();
         } catch (Exception e) {
-            source.sendFailure(Component.literal("Only players can use /ah bids."));
+            source.sendFailure(Component.translatable("economy_ld.command.ah.bids.players_only"));
             return 0;
         }
 
         EconomyManager.getInstance().getPlayerBids(player.getUUID(), source.getServer().registryAccess())
                 .whenComplete((auctions, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Failed to load your current bids."));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.bids.error"));
                         return;
                     }
                     if (auctions == null || auctions.isEmpty()) {
-                        source.sendSuccess(() -> Component.literal("You are not the highest bidder on any active auction."), false);
+                        source.sendSuccess(() -> Component.translatable("economy_ld.command.ah.bids.empty"), false);
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal("Auctions where you are highest bidder:"), false);
+                    source.sendSuccess(() -> Component.translatable("economy_ld.command.ah.bids.header"), false);
                     long now = System.currentTimeMillis() / 1000L;
                     for (AuctionRecord auction : auctions) {
                         String shortId = auction.id().toString().substring(0, 8);
-                        source.sendSuccess(() -> Component.literal(
-                                "[" + shortId + "] "
-                                        + auction.itemStack().getHoverName().getString()
-                                        + " - your bid: " + CurrencyFormatter.format(auction.currentBid())
-                                        + " - expires in " + formatDuration(Math.max(0L, auction.expiresAt() - now))
+                        source.sendSuccess(() -> Component.translatable(
+                                "economy_ld.command.ah.bids.row",
+                                shortId,
+                                auction.itemStack().getHoverName().getString(),
+                                CurrencyFormatter.format(auction.currentBid()),
+                                formatDuration(Math.max(0L, auction.expiresAt() - now))
                         ), false);
                     }
                 }));
@@ -206,7 +208,7 @@ public final class AuctionCommand {
         try {
             player = source.getPlayerOrException();
         } catch (Exception e) {
-            source.sendFailure(Component.literal("Only players can use /ah cancel."));
+            source.sendFailure(Component.translatable("economy_ld.command.ah.cancel.players_only"));
             return 0;
         }
         String idPrefix = idPrefixRaw.toLowerCase(Locale.ROOT);
@@ -227,22 +229,25 @@ public final class AuctionCommand {
                 })
                 .whenComplete((result, error) -> source.getServer().execute(() -> {
                     if (error != null || result == null) {
-                        source.sendFailure(Component.literal("Failed to cancel auction: " + errorMessage(error)));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.cancel.error", errorMessage(error)));
                         return;
                     }
                     if (result.forbidden()) {
-                        source.sendFailure(Component.literal("You may only cancel your own listings."));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.cancel.own_only"));
                         return;
                     }
                     if (result.auction() == null) {
-                        source.sendFailure(Component.literal("No active auction found for prefix '" + idPrefixRaw + "'."));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.cancel.not_found", idPrefixRaw));
                         return;
                     }
                     if (!result.success()) {
-                        source.sendFailure(Component.literal("Auction cannot be cancelled (already bid on or already ended)."));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.cancel.already_bid"));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal("Cancelled auction " + result.auction().id().toString().substring(0, 8) + "."), true);
+                    source.sendSuccess(() -> Component.translatable(
+                            "economy_ld.command.ah.cancel.success",
+                            result.auction().id().toString().substring(0, 8)
+                    ), true);
                     AuctionNetworking.syncAuctionsToAll(source.getServer());
                     AuctionNetworking.syncInboxToPlayer(player);
                 }));
@@ -257,12 +262,14 @@ public final class AuctionCommand {
                                 .thenApply(effective -> new BonusResult(target, newBonus, effective))))
                 .whenComplete((result, error) -> source.getServer().execute(() -> {
                     if (error != null || result == null) {
-                        source.sendFailure(Component.literal("Failed to add bonus listing limit: " + errorMessage(error)));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.bonus.add.error", errorMessage(error)));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal(
-                            "Updated " + result.player().username() + ": bonus=" + result.bonus()
-                                    + ", effective limit=" + result.effectiveLimit()
+                    source.sendSuccess(() -> Component.translatable(
+                            "economy_ld.command.ah.bonus.add.success",
+                            result.player().username(),
+                            result.bonus(),
+                            result.effectiveLimit()
                     ), true);
                 }));
         return 1;
@@ -276,12 +283,14 @@ public final class AuctionCommand {
                                 .thenApply(effective -> new BonusResult(target, newBonus, effective))))
                 .whenComplete((result, error) -> source.getServer().execute(() -> {
                     if (error != null || result == null) {
-                        source.sendFailure(Component.literal("Failed to remove bonus listing limit: " + errorMessage(error)));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.bonus.remove.error", errorMessage(error)));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal(
-                            "Updated " + result.player().username() + ": bonus=" + result.bonus()
-                                    + ", effective limit=" + result.effectiveLimit()
+                    source.sendSuccess(() -> Component.translatable(
+                            "economy_ld.command.ah.bonus.remove.success",
+                            result.player().username(),
+                            result.bonus(),
+                            result.effectiveLimit()
                     ), true);
                 }));
         return 1;
@@ -295,12 +304,14 @@ public final class AuctionCommand {
                                 .thenApply(effective -> new BonusResult(target, Math.max(0, amount), effective))))
                 .whenComplete((result, error) -> source.getServer().execute(() -> {
                     if (error != null || result == null) {
-                        source.sendFailure(Component.literal("Failed to set bonus listing limit: " + errorMessage(error)));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.bonus.set.error", errorMessage(error)));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal(
-                            "Updated " + result.player().username() + ": bonus=" + result.bonus()
-                                    + ", effective limit=" + result.effectiveLimit()
+                    source.sendSuccess(() -> Component.translatable(
+                            "economy_ld.command.ah.bonus.set.success",
+                            result.player().username(),
+                            result.bonus(),
+                            result.effectiveLimit()
                     ), true);
                 }));
         return 1;
@@ -318,13 +329,15 @@ public final class AuctionCommand {
                 })
                 .whenComplete((result, error) -> source.getServer().execute(() -> {
                     if (error != null || result == null) {
-                        source.sendFailure(Component.literal("Failed to get bonus listing limit: " + errorMessage(error)));
+                        source.sendFailure(Component.translatable("economy_ld.command.ah.bonus.get.error", errorMessage(error)));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal(
-                            result.player().username() + ": bonus=" + result.bonus()
-                                    + ", effective limit=" + result.effectiveLimit()
-                                    + " (default: " + EconomyManager.getInstance().getAuctionConfig_defaultMaxListings() + ")"
+                    source.sendSuccess(() -> Component.translatable(
+                            "economy_ld.command.ah.bonus.get.success",
+                            result.player().username(),
+                            result.bonus(),
+                            result.effectiveLimit(),
+                            EconomyManager.getInstance().getAuctionConfig_defaultMaxListings()
                     ), false);
                 }));
         return 1;

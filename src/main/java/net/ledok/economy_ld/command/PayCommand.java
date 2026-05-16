@@ -32,7 +32,7 @@ public final class PayCommand {
         try {
             sender = source.getPlayerOrException();
         } catch (Exception e) {
-            source.sendFailure(Component.literal("Only players can use /pay."));
+            source.sendFailure(Component.translatable("economy_ld.command.pay.players_only"));
             return 0;
         }
 
@@ -40,15 +40,23 @@ public final class PayCommand {
                 .transfer(sender.getUUID(), sender.getName().getString(), target.getUUID(), target.getName().getString(), amount)
                 .whenComplete((success, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Transfer failed: " + errorMessage(error)));
+                        source.sendFailure(Component.translatable("economy_ld.command.pay.error", errorMessage(error)));
                         return;
                     }
                     if (!success) {
-                        source.sendFailure(Component.literal("Insufficient funds."));
+                        source.sendFailure(Component.translatable("economy_ld.command.pay.insufficient_funds"));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal("You paid " + target.getName().getString() + " " + CurrencyFormatter.format(amount) + "."), false);
-                    target.sendSystemMessage(Component.literal(sender.getName().getString() + " paid you " + CurrencyFormatter.format(amount) + "."));
+                    source.sendSuccess(() -> Component.translatable(
+                            "economy_ld.command.pay.sent",
+                            target.getName().getString(),
+                            CurrencyFormatter.format(amount)
+                    ), false);
+                    target.sendSystemMessage(Component.translatable(
+                            "economy_ld.command.pay.received",
+                            sender.getName().getString(),
+                            CurrencyFormatter.format(amount)
+                    ));
                 }));
         return 1;
     }

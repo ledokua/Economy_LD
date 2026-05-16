@@ -30,17 +30,17 @@ public final class BalanceCommand {
         try {
             player = source.getPlayerOrException();
         } catch (Exception e) {
-            source.sendFailure(Component.literal("Only players can use /balance without arguments."));
+            source.sendFailure(Component.translatable("economy_ld.command.balance.players_only"));
             return 0;
         }
 
         EconomyManager.getInstance().getBalance(player.getUUID(), player.getName().getString())
                 .whenComplete((balance, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Failed to read your balance."));
+                        source.sendFailure(Component.translatable("economy_ld.command.balance.error"));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal("Your balance: " + CurrencyFormatter.format(balance)), false);
+                    source.sendSuccess(() -> Component.translatable("economy_ld.command.balance.self", CurrencyFormatter.format(balance)), false);
                 }));
         return 1;
     }
@@ -49,11 +49,13 @@ public final class BalanceCommand {
         EconomyManager.getInstance().getBalance(target.getUUID(), target.getName().getString())
                 .whenComplete((balance, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Failed to read balance for " + target.getName().getString() + "."));
+                        source.sendFailure(Component.translatable("economy_ld.command.balance.error.other", target.getName().getString()));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal(
-                            target.getName().getString() + "'s balance: " + CurrencyFormatter.format(balance)
+                    source.sendSuccess(() -> Component.translatable(
+                            "economy_ld.command.balance.other",
+                            target.getName().getString(),
+                            CurrencyFormatter.format(balance)
                     ), false);
                 }));
         return 1;

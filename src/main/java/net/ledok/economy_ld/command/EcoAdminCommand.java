@@ -77,9 +77,9 @@ public final class EcoAdminCommand {
                         .executes(context -> {
                             ServerPlayer player = context.getSource().getPlayerOrException();
                             boolean nowOn = EconomyManager.getInstance().toggleAdminMode(player.getUUID());
-                            context.getSource().sendSuccess(() -> Component.literal(nowOn
-                                    ? "Admin mode: ON - you can now manage admin shops."
-                                    : "Admin mode: OFF - back to buyer view."), false);
+                            context.getSource().sendSuccess(() -> Component.translatable(nowOn
+                                    ? "economy_ld.command.eco.adminmode.on"
+                                    : "economy_ld.command.eco.adminmode.off"), false);
                             return 1;
                         }))
                 .then(Commands.literal("reload")
@@ -92,13 +92,13 @@ public final class EcoAdminCommand {
                 .whenComplete((ignored, error) -> source.getServer().execute(() -> {
                     if (error != null) {
                         if (isUnknownPlayer(error)) {
-                            source.sendFailure(Component.literal("Player '" + username + "' has never joined this server."));
+                            source.sendFailure(Component.translatable("economy_ld.command.eco.unknown_player", username));
                         } else {
-                            source.sendFailure(Component.literal("Failed to give funds: " + errorMessage(error)));
+                            source.sendFailure(Component.translatable("economy_ld.command.eco.give.error", errorMessage(error)));
                         }
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal("Gave " + CurrencyFormatter.format(amount) + " to " + username + "."), true);
+                    source.sendSuccess(() -> Component.translatable("economy_ld.command.eco.give.success", CurrencyFormatter.format(amount), username), true);
                 }));
         return 1;
     }
@@ -108,17 +108,17 @@ public final class EcoAdminCommand {
                 .whenComplete((success, error) -> source.getServer().execute(() -> {
                     if (error != null) {
                         if (isUnknownPlayer(error)) {
-                            source.sendFailure(Component.literal("Player '" + username + "' has never joined this server."));
+                            source.sendFailure(Component.translatable("economy_ld.command.eco.unknown_player", username));
                         } else {
-                            source.sendFailure(Component.literal("Failed to take funds: " + errorMessage(error)));
+                            source.sendFailure(Component.translatable("economy_ld.command.eco.take.error", errorMessage(error)));
                         }
                         return;
                     }
                     if (!success) {
-                        source.sendFailure(Component.literal("Insufficient funds for " + username + "."));
+                        source.sendFailure(Component.translatable("economy_ld.command.eco.take.insufficient", username));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal("Took " + CurrencyFormatter.format(amount) + " from " + username + "."), true);
+                    source.sendSuccess(() -> Component.translatable("economy_ld.command.eco.take.success", CurrencyFormatter.format(amount), username), true);
                 }));
         return 1;
     }
@@ -128,13 +128,13 @@ public final class EcoAdminCommand {
                 .whenComplete((ignored, error) -> source.getServer().execute(() -> {
                     if (error != null) {
                         if (isUnknownPlayer(error)) {
-                            source.sendFailure(Component.literal("Player '" + username + "' has never joined this server."));
+                            source.sendFailure(Component.translatable("economy_ld.command.eco.unknown_player", username));
                         } else {
-                            source.sendFailure(Component.literal("Failed to set balance: " + errorMessage(error)));
+                            source.sendFailure(Component.translatable("economy_ld.command.eco.set.error", errorMessage(error)));
                         }
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal("Set " + username + "'s balance to " + CurrencyFormatter.format(amount) + "."), true);
+                    source.sendSuccess(() -> Component.translatable("economy_ld.command.eco.set.success", username, CurrencyFormatter.format(amount)), true);
                 }));
         return 1;
     }
@@ -143,15 +143,17 @@ public final class EcoAdminCommand {
         EconomyManager.getInstance().getBalanceByUsername(username)
                 .whenComplete((balanceOpt, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Failed to read balance for " + username + "."));
+                        source.sendFailure(Component.translatable("economy_ld.command.eco.balance.error", username));
                         return;
                     }
                     if (balanceOpt.isEmpty()) {
-                        source.sendFailure(Component.literal("Player '" + username + "' has no wallet record."));
+                        source.sendFailure(Component.translatable("economy_ld.command.eco.balance.no_wallet", username));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal(
-                            username + "'s balance: " + CurrencyFormatter.format(balanceOpt.getAsLong())
+                    source.sendSuccess(() -> Component.translatable(
+                            "economy_ld.command.eco.balance.success",
+                            username,
+                            CurrencyFormatter.format(balanceOpt.getAsLong())
                     ), false);
                 }));
         return 1;
@@ -161,10 +163,10 @@ public final class EcoAdminCommand {
         EconomyManager.getInstance().reloadConfig()
                 .whenComplete((ignored, error) -> source.getServer().execute(() -> {
                     if (error != null) {
-                        source.sendFailure(Component.literal("Config reload failed."));
+                        source.sendFailure(Component.translatable("economy_ld.command.eco.reload.error"));
                         return;
                     }
-                    source.sendSuccess(() -> Component.literal("Economy config reloaded."), true);
+                    source.sendSuccess(() -> Component.translatable("economy_ld.command.eco.reload.success"), true);
                 }));
         return 1;
     }

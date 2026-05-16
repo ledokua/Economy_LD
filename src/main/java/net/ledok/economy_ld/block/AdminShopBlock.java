@@ -65,7 +65,7 @@ public class AdminShopBlock extends ShopBlock {
         if (!(placer instanceof ServerPlayer serverPlayer)
                 || !PermissionHelper.check(serverPlayer, "economy_ld.admin.shop.place", 2)) {
             if (!level.isClientSide() && placer instanceof ServerPlayer sp) {
-                sp.sendSystemMessage(Component.literal("Only operators can place admin shops."));
+                sp.sendSystemMessage(Component.translatable("economy_ld.block.admin_shop.no_permission"));
                 level.destroyBlock(pos, true, placer);
             }
             return;

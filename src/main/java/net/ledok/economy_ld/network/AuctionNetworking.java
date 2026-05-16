@@ -20,7 +20,9 @@ import net.ledok.economy_ld.network.packet.s2c.AuctionListSyncS2CPacket;
 import net.ledok.economy_ld.network.packet.s2c.InboxSyncS2CPacket;
 import net.ledok.economy_ld.network.packet.s2c.OpenAuctionScreenS2CPacket;
 import net.ledok.economy_ld.network.packet.s2c.OpenInboxScreenS2CPacket;
+import net.ledok.economy_ld.util.CurrencyFormatter;
 import net.ledok.economy_ld.util.ItemStackSerializationUtil;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
@@ -322,10 +324,10 @@ public final class AuctionNetworking {
                                         result.current().itemStack().getHoverName().getString(),
                                         result.current().currentBid()
                                 ));
-                                prevBidderOnline.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                                        "Your bid on " + result.current().itemStack().getHoverName().getString() +
-                                                " was displaced - the auction was bought out. Your " +
-                                                String.format("%,d", result.current().currentBid()) + " LC has been refunded."
+                                prevBidderOnline.sendSystemMessage(Component.translatable(
+                                        "economy_ld.auction.outbid.buyout",
+                                        result.current().itemStack().getHoverName().getString(),
+                                        CurrencyFormatter.format(result.current().currentBid())
                                 ));
                                 syncInboxToPlayer(prevBidderOnline);
                             }
@@ -346,7 +348,7 @@ public final class AuctionNetworking {
                     if (current == null) {
                         return java.util.concurrent.CompletableFuture.completedFuture(new CancelResult(null, false, false));
                     }
-                    boolean allowed = player.hasPermissions(2) || current.sellerUuid().equals(player.getUUID());
+                    boolean allowed = net.ledok.economy_ld.util.PermissionHelper.check(player, "economy_ld.admin.auction_cancel", 2) || current.sellerUuid().equals(player.getUUID());
                     if (!allowed) {
                         return java.util.concurrent.CompletableFuture.completedFuture(new CancelResult(current, false, true));
                     }
@@ -426,9 +428,7 @@ public final class AuctionNetworking {
 
     private static void notifyInboxUpdate(ServerPlayer player) {
         syncInboxToPlayer(player);
-        player.sendSystemMessage(net.minecraft.network.chat.Component.literal(
-                "📦 Your item has been sent to your auction inbox! Use /ah inbox to claim it."
-        ));
+        player.sendSystemMessage(Component.translatable("economy_ld.auction.item_sent_to_inbox"));
         sendActionResult(player, new AuctionActionResultS2CPacket(
                 AuctionActionResultS2CPacket.ActionType.ITEM_SENT_TO_INBOX,
                 "",

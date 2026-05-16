@@ -27,9 +27,7 @@ public class AuctionExpiryTicker {
                         continue;
                     }
                     AuctionNetworking.syncInboxToPlayer(online);
-                    online.sendSystemMessage(Component.literal(
-                            "📦 You have new items in your auction inbox! Use /ah inbox to claim them."
-                    ));
+                    online.sendSystemMessage(Component.translatable("economy_ld.auction.inbox.new_items"));
                     ServerPlayNetworking.send(online, new AuctionActionResultS2CPacket(
                             AuctionActionResultS2CPacket.ActionType.ITEM_SENT_TO_INBOX,
                             "",
