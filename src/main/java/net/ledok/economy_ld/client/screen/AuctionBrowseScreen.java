@@ -82,6 +82,8 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
     private FlowLayout toastWidget = null;
     private long toastExpiryMs = 0;
     private OverlayContainer<FlowLayout> activeDialog = null;
+    private LabelComponent balanceLabel;
+    private LabelComponent auctionCountLabel;
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
     public AuctionBrowseScreen() {
@@ -171,9 +173,10 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         sub.gap(s(6));
         sub.child(tag("GLOBAL MARKET", C_AMBER));
         if (!compact) {
-            LabelComponent cnt = tint("0 ACTIVE", C_INK_MID);
-            cnt.id("auction-count");
-            sub.child(cnt);
+            this.auctionCountLabel = tint("0 active", C_INK_MID);
+            sub.child(this.auctionCountLabel);
+            this.balanceLabel = tint("BAL  ·  0 LC", 0xFF9D81EA);
+            sub.child(this.balanceLabel);
         }
         title.child(sub);
         header.child(icon);
@@ -281,9 +284,11 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         if (nextButton != null) nextButton.active(currentPage < totalPages - 1);
         if (pageLabel != null) pageLabel.text(Component.literal("PAGE  " + String.format("%02d", currentPage + 1) + " / " + String.format("%02d", totalPages)));
 
-        // Update count label
-        FlowLayout sub = rootLayout.childById(FlowLayout.class, "auction-sub");
-        // Count update via search: just rebuild content if needed
+        // Update header labels
+        if (auctionCountLabel != null)
+            auctionCountLabel.text(Component.literal(all.size() + (all.size() == 1 ? " active" : " active")));
+        if (balanceLabel != null)
+            balanceLabel.text(Component.literal("BAL  ·  " + String.format("%,d", AuctionClientState.getPlayerBalance()) + " LC"));
 
         int sv = AuctionClientState.getSyncVersion();
         boolean syncNew = sv != lastSyncVersion;
@@ -877,15 +882,17 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         durationSection.child(dBtns);
         panel.child(durationSection);
 
-        // Fee preview
-        LabelComponent feeLabel = tint("Listing fee: 0 LC", C_INK_DIM);
+        // Fee preview — updates live as start price changes
+        LabelComponent feeLabel = tint("Listing fee: — LC", C_INK_DIM);
         panel.child(feeLabel);
-        // Update fee label on price change
         Runnable updateFee = () -> {
             long price = parseLong(startPriceVal[0], 0);
-            if (minecraft != null) {
-                // We can't easily get config client-side; show % placeholder
-                feeLabel.text(Component.literal("Listing fee will be deducted from your wallet."));
+            // We don't have the fee % client-side, so show a note
+            // The actual deduction happens server-side; just show the formula
+            if (price > 0) {
+                feeLabel.text(Component.literal("Listing fee will be deducted at listing time."));
+            } else {
+                feeLabel.text(Component.literal("Set a start price to see the listing fee."));
             }
         };
 
@@ -970,6 +977,10 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private void buildField(FlowLayout parent, String label, String hint, String initial, String suffix, String[] ref, boolean required) {
+        buildField(parent, label, hint, initial, suffix, ref, required, null);
+    }
+
+    private void buildField(FlowLayout parent, String label, String hint, String initial, String suffix, String[] ref, boolean required, Runnable onChange) {
         FlowLayout field = Containers.verticalFlow(Sizing.fixed(220), Sizing.content());
         field.gap(4);
         FlowLayout fh = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
@@ -985,7 +996,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         wrap.gap(6);
         TextBoxComponent input = Components.textBox(Sizing.expand(), initial);
         input.setMaxLength(16);
-        input.onChanged().subscribe(v -> ref[0] = v);
+        input.onChanged().subscribe(v -> { ref[0] = v; if (onChange != null) onChange.run(); });
         wrap.child(input);
         wrap.child(tint(suffix, C_INK_DIM));
         field.child(wrap);

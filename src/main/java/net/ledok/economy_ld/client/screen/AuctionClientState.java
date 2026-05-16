@@ -15,6 +15,7 @@ public final class AuctionClientState {
     private static final AtomicInteger ACTION_VERSION = new AtomicInteger(0);
     private static final AtomicReference<AuctionActionResultS2CPacket> LAST_RESULT = new AtomicReference<>(null);
     private static final AtomicInteger OPEN_VERSION = new AtomicInteger(0);
+    private static final java.util.concurrent.atomic.AtomicLong PLAYER_BALANCE = new java.util.concurrent.atomic.AtomicLong(0L);
 
     private AuctionClientState() {
     }
@@ -23,6 +24,14 @@ public final class AuctionClientState {
         AUCTIONS.clear();
         AUCTIONS.addAll(auctions);
         SYNC_VERSION.incrementAndGet();
+    }
+
+    public static void setPlayerBalance(long balance) {
+        PLAYER_BALANCE.set(balance);
+    }
+
+    public static long getPlayerBalance() {
+        return PLAYER_BALANCE.get();
     }
 
     public static List<AuctionRecord> getAuctions() {

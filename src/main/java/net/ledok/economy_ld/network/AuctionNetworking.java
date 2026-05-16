@@ -68,8 +68,10 @@ public final class AuctionNetworking {
     }
 
     public static void registerClientReceivers() {
-        ClientPlayNetworking.registerGlobalReceiver(AuctionListSyncS2CPacket.TYPE, (payload, context) ->
-                AuctionClientState.setAuctions(payload.auctions()));
+        ClientPlayNetworking.registerGlobalReceiver(AuctionListSyncS2CPacket.TYPE, (payload, context) -> {
+            AuctionClientState.setAuctions(payload.auctions());
+            AuctionClientState.setPlayerBalance(payload.playerBalance());
+        });
         ClientPlayNetworking.registerGlobalReceiver(AuctionActionResultS2CPacket.TYPE, (payload, context) ->
                 AuctionClientState.setLastResult(payload));
         ClientPlayNetworking.registerGlobalReceiver(OpenAuctionScreenS2CPacket.TYPE, (payload, context) ->
@@ -81,16 +83,21 @@ public final class AuctionNetworking {
     }
 
     public static void syncAuctionsToPlayer(ServerPlayer player) {
-        EconomyManager.getInstance().getActiveAuctions(player.server.registryAccess())
-                .thenAccept(auctions -> player.server.execute(() ->
-                        ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(auctions))));
+        EconomyManager manager = EconomyManager.getInstance();
+        manager.getActiveAuctions(player.server.registryAccess())
+                .thenAccept(auctions -> manager.getBalance(player.getUUID(), player.getName().getString())
+                        .thenAccept(balance -> player.server.execute(() ->
+                                ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(auctions, balance)))));
     }
 
     public static void syncAuctionsToAll(MinecraftServer server) {
-        EconomyManager.getInstance().getActiveAuctions(server.registryAccess())
+        EconomyManager manager = EconomyManager.getInstance();
+        manager.getActiveAuctions(server.registryAccess())
                 .thenAccept(auctions -> server.execute(() ->
                         server.getPlayerList().getPlayers().forEach(player ->
-                                ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(auctions)))));
+                                manager.getBalance(player.getUUID(), player.getName().getString())
+                                        .thenAccept(balance -> server.execute(() ->
+                                                ServerPlayNetworking.send(player, new AuctionListSyncS2CPacket(auctions, balance)))))));
     }
 
     public static void syncInboxToPlayer(ServerPlayer player) {
