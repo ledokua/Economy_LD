@@ -3,6 +3,7 @@ package net.ledok.economy_ld.command;
 import com.mojang.brigadier.CommandDispatcher;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.util.CurrencyFormatter;
+import net.ledok.economy_ld.util.PermissionHelper;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -17,6 +18,7 @@ public final class BalanceCommand {
         dispatcher.register(Commands.literal("balance")
                 .executes(ctx -> executeSelf(ctx.getSource()))
                 .then(Commands.argument("player", EntityArgument.player())
+                        .requires(source -> PermissionHelper.check(source, "economy_ld.balance.others", 0))
                         .executes(ctx -> executeOther(
                                 ctx.getSource(),
                                 EntityArgument.getPlayer(ctx, "player")

@@ -2,6 +2,7 @@ package net.ledok.economy_ld.block;
 
 import com.mojang.serialization.MapCodec;
 import net.ledok.economy_ld.manager.EconomyManager;
+import net.ledok.economy_ld.util.PermissionHelper;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
@@ -44,7 +45,7 @@ public class AdminShopBlock extends ShopBlock {
             ensureShopRecord(level, pos, shopBe, serverPlayer, true, false);
             UUID shopId = shopBe.getShopId();
             boolean isAdminShop = shopBe.isAdminShop();
-            boolean ownerOrOperator = serverPlayer.hasPermissions(2)
+            boolean ownerOrOperator = PermissionHelper.check(serverPlayer, "economy_ld.admin.shop.manage", 2)
                     && EconomyManager.getInstance().isAdminModeActive(serverPlayer.getUUID());
             if (shopId == null) {
                 return InteractionResult.CONSUME;
@@ -61,7 +62,8 @@ public class AdminShopBlock extends ShopBlock {
 
     @Override
     public void setPlacedBy(Level level, BlockPos pos, BlockState state, LivingEntity placer, ItemStack stack) {
-        if (!(placer instanceof ServerPlayer serverPlayer) || !serverPlayer.hasPermissions(2)) {
+        if (!(placer instanceof ServerPlayer serverPlayer)
+                || !PermissionHelper.check(serverPlayer, "economy_ld.admin.shop.place", 2)) {
             if (!level.isClientSide() && placer instanceof ServerPlayer sp) {
                 sp.sendSystemMessage(Component.literal("Only operators can place admin shops."));
                 level.destroyBlock(pos, true, placer);

@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import net.ledok.economy_ld.manager.EconomyManager;
 import net.ledok.economy_ld.util.CurrencyFormatter;
+import net.ledok.economy_ld.util.PermissionHelper;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -33,8 +34,8 @@ public final class EcoAdminCommand {
 
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("eco")
-                .requires(source -> source.hasPermission(2))
                 .then(Commands.literal("give")
+                        .requires(source -> PermissionHelper.check(source, "economy_ld.admin.give", 2))
                         .then(Commands.argument("player", StringArgumentType.string())
                                 .suggests(KNOWN_PLAYERS)
                                 .then(Commands.argument("amount", LongArgumentType.longArg(1))
@@ -44,6 +45,7 @@ public final class EcoAdminCommand {
                                                 LongArgumentType.getLong(ctx, "amount")
                                         )))))
                 .then(Commands.literal("take")
+                        .requires(source -> PermissionHelper.check(source, "economy_ld.admin.take", 2))
                         .then(Commands.argument("player", StringArgumentType.string())
                                 .suggests(KNOWN_PLAYERS)
                                 .then(Commands.argument("amount", LongArgumentType.longArg(1))
@@ -53,6 +55,7 @@ public final class EcoAdminCommand {
                                                 LongArgumentType.getLong(ctx, "amount")
                                         )))))
                 .then(Commands.literal("set")
+                        .requires(source -> PermissionHelper.check(source, "economy_ld.admin.set", 2))
                         .then(Commands.argument("player", StringArgumentType.string())
                                 .suggests(KNOWN_PLAYERS)
                                 .then(Commands.argument("amount", LongArgumentType.longArg(0))
@@ -62,6 +65,7 @@ public final class EcoAdminCommand {
                                                 LongArgumentType.getLong(ctx, "amount")
                                         )))))
                 .then(Commands.literal("balance")
+                        .requires(source -> PermissionHelper.check(source, "economy_ld.admin.balance", 2))
                         .then(Commands.argument("player", StringArgumentType.string())
                                 .suggests(KNOWN_PLAYERS)
                                 .executes(ctx -> balance(
@@ -69,7 +73,7 @@ public final class EcoAdminCommand {
                                         StringArgumentType.getString(ctx, "player")
                                 ))))
                 .then(Commands.literal("adminmode")
-                        .requires(source -> source.hasPermission(2))
+                        .requires(source -> PermissionHelper.check(source, "economy_ld.admin.adminmode", 2))
                         .executes(context -> {
                             ServerPlayer player = context.getSource().getPlayerOrException();
                             boolean nowOn = EconomyManager.getInstance().toggleAdminMode(player.getUUID());
@@ -79,6 +83,7 @@ public final class EcoAdminCommand {
                             return 1;
                         }))
                 .then(Commands.literal("reload")
+                        .requires(source -> PermissionHelper.check(source, "economy_ld.admin.reload", 2))
                         .executes(ctx -> reload(ctx.getSource()))));
     }
 

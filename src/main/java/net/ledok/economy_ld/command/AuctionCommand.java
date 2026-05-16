@@ -12,6 +12,7 @@ import net.ledok.economy_ld.network.AuctionNetworking;
 import net.ledok.economy_ld.network.packet.s2c.OpenAuctionScreenS2CPacket;
 import net.ledok.economy_ld.network.packet.s2c.OpenInboxScreenS2CPacket;
 import net.ledok.economy_ld.util.CurrencyFormatter;
+import net.ledok.economy_ld.util.PermissionHelper;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
@@ -59,7 +60,7 @@ public final class AuctionCommand {
                                         StringArgumentType.getString(ctx, "id")
                                 ))))
                 .then(Commands.literal("bonus_listing_limit")
-                        .requires(source -> source.hasPermission(2))
+                        .requires(source -> PermissionHelper.check(source, "economy_ld.admin.auction_limit", 2))
                         .then(Commands.argument("player", StringArgumentType.string())
                                 .suggests(KNOWN_PLAYERS)
                                 .then(Commands.literal("add")
@@ -218,7 +219,7 @@ public final class AuctionCommand {
                     if (match == null) {
                         return CompletableFuture.completedFuture(new CancelCommandResult(null, false, false));
                     }
-                    if (!player.hasPermissions(2) && !match.sellerUuid().equals(player.getUUID())) {
+                    if (!PermissionHelper.check(player, "economy_ld.admin.auction_cancel", 2) && !match.sellerUuid().equals(player.getUUID())) {
                         return CompletableFuture.completedFuture(new CancelCommandResult(match, false, true));
                     }
                     return EconomyManager.getInstance().cancelAuction(match.id(), player.getUUID())

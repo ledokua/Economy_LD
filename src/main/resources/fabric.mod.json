@@ -22,5 +22,8 @@
     "fabric-api": "*",
     "minecraft": "${minecraft_version}",
     "owo": ">=0.12.15"
+  },
+  "suggests": {
+    "luckperms": "*"
   }
 }
