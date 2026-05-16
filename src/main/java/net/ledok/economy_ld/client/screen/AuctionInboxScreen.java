@@ -39,6 +39,11 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
     // ─── State ────────────────────────────────────────────────────────────────
     private int lastSyncVersion = -1;
     private boolean compact = false;
+    private int currentPage = 0;
+    private int rowsPerPage = 5;
+    private LabelComponent pageLabel;
+    private ButtonComponent prevButton, nextButton;
+    private FlowLayout pageBars;
 
     // ─── Layout refs ─────────────────────────────────────────────────────────
     private StackLayout rootLayout;
@@ -62,6 +67,9 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         int shellW = Math.min(this.width - 32, 780);
         int shellH = Math.min(this.height - 32, 500);
         this.compact = shellW < 600 || shellH < 340;
+        int rowH = s(52) + 4;
+        int reservedH = s(64) + s(28) + s(52) + 24; // header + colHeader + footer + padding
+        this.rowsPerPage = Math.max(2, (shellH - reservedH) / rowH);
 
         FlowLayout shell = Containers.verticalFlow(Sizing.fixed(shellW), Sizing.fixed(shellH));
         shell.surface(Surface.flat(C_PANEL).and(Surface.outline(C_HAIR_HI)));
@@ -132,19 +140,31 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
     private FlowLayout buildFooter() {
         FlowLayout footer = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(s(52)));
         footer.surface(Surface.flat(C_PANEL2).and(Surface.outline(C_HAIR)));
-        footer.padding(Insets.of(s(10)));
+        footer.padding(Insets.of(s(8)));
         footer.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
+        footer.gap(8);
 
-        FlowLayout info = Containers.verticalFlow(Sizing.expand(), Sizing.content());
-        info.gap(2);
-        info.child(tint("Items expire 48 hours after delivery.", C_INK_DIM));
-        info.child(tint("Items not collected in time are permanently lost.", C_INK_DIM));
-        footer.child(info);
+        this.prevButton = smallBtn("◀", s(36), s(32), 0xFF1A2736, 0xFF223347, 0xFF3A4F67,
+                b -> { if (currentPage > 0) { currentPage--; refreshUi(); } });
+        footer.child(prevButton);
 
-        footer.child(smallBtn(compact ? "CLAIM ALL" : "CLAIM ALL ITEMS", compact ? 90 : 130, s(32),
-                C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> {
-                    ClientPlayNetworking.send(new ClaimAllInboxC2SPacket());
-                }));
+        FlowLayout center = Containers.horizontalFlow(Sizing.expand(), Sizing.content());
+        center.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
+        center.gap(8);
+        this.pageBars = Containers.horizontalFlow(Sizing.fixed(100), Sizing.fixed(4));
+        this.pageBars.gap(2);
+        this.pageLabel = tint("PAGE  01 / 01", C_INK_MID);
+        center.child(pageBars);
+        center.child(pageLabel);
+        footer.child(center);
+
+        this.nextButton = smallBtn("▶", s(36), s(32), 0xFF1A2736, 0xFF223347, 0xFF3A4F67,
+                b -> { currentPage++; refreshUi(); });
+        footer.child(nextButton);
+
+        footer.child(smallBtn(compact ? "ALL" : "CLAIM ALL", compact ? 50 : 110, s(32),
+                C_AMBER_DK, C_AMBER, 0xFFF5C870,
+                b -> ClientPlayNetworking.send(new ClaimAllInboxC2SPacket())));
         return footer;
     }
 
@@ -153,9 +173,18 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         contentArea.clearChildren();
         List<PendingDelivery> deliveries = InboxClientState.getDeliveries();
 
-        if (countLabel != null) {
+        if (countLabel != null)
             countLabel.text(Component.literal(deliveries.size() + (deliveries.size() == 1 ? " item" : " items")));
-        }
+
+        int totalPages = Math.max(1, (deliveries.size() + rowsPerPage - 1) / rowsPerPage);
+        if (currentPage >= totalPages) currentPage = totalPages - 1;
+        if (currentPage < 0) currentPage = 0;
+
+        if (prevButton != null) prevButton.active(currentPage > 0);
+        if (nextButton != null) nextButton.active(currentPage < totalPages - 1);
+        if (pageLabel != null)
+            pageLabel.text(Component.literal("PAGE  " + String.format("%02d", currentPage + 1) + " / " + String.format("%02d", totalPages)));
+        rebuildPageBars(totalPages, currentPage);
 
         if (deliveries.isEmpty()) {
             buildEmpty();
@@ -174,10 +203,25 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         colH.child(cellLabelR("COLLECT", 72, C_INK_DIM));
         contentArea.child(colH);
 
-        // Delivery rows
+        // Paginated rows
         long now = System.currentTimeMillis() / 1000L;
-        for (int i = 0; i < deliveries.size(); i++) {
+        int start = currentPage * rowsPerPage;
+        int end = Math.min(start + rowsPerPage, deliveries.size());
+        for (int i = start; i < end; i++)
             contentArea.child(buildRow(deliveries.get(i), i, now));
+    }
+
+    private void rebuildPageBars(int total, int cur) {
+        if (pageBars == null) return;
+        pageBars.clearChildren();
+        int containerW = 100, gap = 2;
+        int usable = Math.max(total, containerW - gap * Math.max(0, total - 1));
+        int base = usable / total, rem = usable % total;
+        for (int i = 0; i < total; i++) {
+            var bar = Components.box(Sizing.fixed(base + (i < rem ? 1 : 0)), Sizing.fill(100));
+            bar.fill(true);
+            bar.color(i == cur ? Color.ofRgb(0xF5B042) : Color.ofRgb(0x3B4D61));
+            pageBars.child(bar);
         }
     }
 
@@ -328,7 +372,7 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private ButtonComponent smallBtn(String text, int w, int h, int fill, int hover, int border,
-                                      java.util.function.Consumer<ButtonComponent> onPress) {
+                                     java.util.function.Consumer<ButtonComponent> onPress) {
         ButtonComponent btn = Components.button(Component.literal(text), onPress);
         btn.sizing(Sizing.fixed(w), Sizing.fixed(h));
         btn.renderer((ctx, rendered, delta) -> {
