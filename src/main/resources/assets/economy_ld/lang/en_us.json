@@ -73,5 +73,15 @@
   "economy_ld.auction.outbid.buyout": "Your bid on %s was displaced — the auction was bought out. Your %s has been refunded.",
   "economy_ld.auction.item_sent_to_inbox": "📦 Your item has been sent to your auction inbox! Use /ah inbox to claim it.",
   "economy_ld.auction.blocked_busy": "You cannot list items on the auction house right now — finish your current activity first.",
-  "economy_ld.inbox.blocked_busy": "You cannot claim inbox items right now — finish your current activity first."
+  "economy_ld.inbox.blocked_busy": "You cannot claim inbox items right now — finish your current activity first.",
+  "economy_ld.inbox.source.auction_won": "Auction won",
+  "economy_ld.inbox.source.auction_bought": "Bought",
+  "economy_ld.inbox.source.auction_sold": "Auction sold",
+  "economy_ld.inbox.source.auction_expired": "Expired",
+  "economy_ld.inbox.source.auction_cancelled": "Cancelled",
+  "economy_ld.inbox.source.duel_win": "Duel won",
+  "economy_ld.inbox.source.duel_draw": "Duel draw",
+  "economy_ld.inbox.source.dungeon_loot": "Dungeon loot",
+  "economy_ld.inbox.source.dungeon_reward": "Dungeon reward",
+  "economy_ld.inbox.source.external": "Reward"
 }

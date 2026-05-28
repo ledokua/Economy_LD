@@ -287,22 +287,8 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         row.child(itemCell);
 
         // Reason label
-        String reasonDisplay = switch (delivery.reason() != null ? delivery.reason().toUpperCase() : "") {
-            case "AUCTION_WON_ITEM"       -> "Won";
-            case "AUCTION_SOLD_PAYOUT"    -> "Sold";
-            case "AUCTION_EXPIRED_RETURN" -> "Expired";
-            case "AUCTION_CANCELLED"      -> "Cancelled";
-            case "AUCTION_REFUND"         -> "Refund";
-            default -> delivery.reason() != null ? delivery.reason() : "—";
-        };
-        int reasonColor = switch (reasonDisplay) {
-            case "Won"       -> C_AMBER;
-            case "Sold"      -> C_GREEN;
-            case "Cancelled" -> C_INK_MID;
-            case "Expired"   -> C_RED;
-            default          -> C_INK_DIM;
-        };
-        row.child(cellLabel(reasonDisplay, 90, reasonColor));
+        ReasonDisplay reasonDisplay = resolveReason(delivery.reason());
+        row.child(cellLabel(reasonDisplay.label(), 110, reasonDisplay.color()));
 
         row.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
 
@@ -363,6 +349,31 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         l.horizontalSizing(Sizing.fixed(width));
         l.maxWidth(width);
         return l;
+    }
+
+    private record ReasonDisplay(String label, int color) {}
+
+    private ReasonDisplay resolveReason(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return new ReasonDisplay("—", C_INK_DIM);
+        }
+        return switch (reason.toUpperCase()) {
+            case "AUCTION_WON_ITEM"       -> translated("economy_ld.inbox.source.auction_won",       C_AMBER);
+            case "AUCTION_BUYOUT_ITEM"    -> translated("economy_ld.inbox.source.auction_bought",    C_AMBER);
+            case "AUCTION_SOLD_PAYOUT"    -> translated("economy_ld.inbox.source.auction_sold",      C_GREEN);
+            case "AUCTION_EXPIRED_RETURN" -> translated("economy_ld.inbox.source.auction_expired",   C_RED);
+            case "AUCTION_CANCELLED_RETURN" -> translated("economy_ld.inbox.source.auction_cancelled", C_INK_MID);
+            case "DUEL_WIN"               -> translated("economy_ld.inbox.source.duel_win",          C_GREEN);
+            case "DUEL_DRAW_REFUND"       -> translated("economy_ld.inbox.source.duel_draw",         C_INK_MID);
+            case "DUNGEON_LOOT"           -> translated("economy_ld.inbox.source.dungeon_loot",      C_AMBER);
+            case "DUNGEON_REWARD"         -> translated("economy_ld.inbox.source.dungeon_reward",    C_GREEN);
+            case "EXTERNAL_DELIVERY"      -> translated("economy_ld.inbox.source.external",          C_INK_DIM);
+            default -> new ReasonDisplay(reason, C_INK_DIM);
+        };
+    }
+
+    private ReasonDisplay translated(String key, int color) {
+        return new ReasonDisplay(Component.translatable(key).getString(), color);
     }
 
     private LabelComponent cellLabelR(String text, int width, int color) {
