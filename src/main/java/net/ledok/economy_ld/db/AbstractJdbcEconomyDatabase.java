@@ -486,7 +486,13 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
 
                     long priceBuy;
                     Long stock;
-                    try (PreparedStatement q = conn.prepareStatement("SELECT price_buy, stock FROM shop_listings WHERE id = ?")) {
+                    boolean adminShop = false;
+                    try (PreparedStatement q = conn.prepareStatement("""
+                            SELECT sl.price_buy, sl.stock, s.is_admin
+                            FROM shop_listings sl
+                            JOIN shops s ON s.id = sl.shop_id
+                            WHERE sl.id = ?
+                            """)) {
                         q.setString(1, listingId.toString());
                         try (ResultSet rs = q.executeQuery()) {
                             if (!rs.next()) {
@@ -499,6 +505,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                             }
                             priceBuy = rs.getLong("price_buy");
                             stock = rs.getObject("stock") == null ? null : rs.getLong("stock");
+                            adminShop = rs.getBoolean("is_admin");
                         }
                     }
 
@@ -514,7 +521,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                         conn.rollback();
                         return false;
                     }
-                    if (stock != null && stock < quantity) {
+                    if (!adminShop && stock != null && stock < quantity) {
                         conn.rollback();
                         return false;
                     }
@@ -533,7 +540,7 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
                             creditOwner.executeUpdate();
                         }
                     }
-                    if (stock != null) {
+                    if (!adminShop && stock != null) {
                         try (PreparedStatement dec = conn.prepareStatement("UPDATE shop_listings SET stock = stock - ? WHERE id = ?")) {
                             dec.setInt(1, quantity);
                             dec.setString(2, listingId.toString());

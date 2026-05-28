@@ -50,6 +50,14 @@ public class AdminShopBlock extends ShopBlock {
             if (shopId == null) {
                 return InteractionResult.CONSUME;
             }
+            // Self-heal stale DB rows from older versions: admin shops must always be marked is_admin=1
+            EconomyManager.getInstance().upsertShop(
+                    shopId,
+                    null,
+                    true,
+                    level.dimension().location(),
+                    pos
+            );
             BlockPos menuPos = pos.immutable();
             serverPlayer.openMenu(new SimpleMenuProvider(
                     (syncId, inventory, p) -> new ShopBrowseScreenHandler(syncId, inventory, shopId, isAdminShop, ownerOrOperator, menuPos),

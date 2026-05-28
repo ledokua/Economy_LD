@@ -9,9 +9,13 @@ import net.ledok.economy_ld.util.CurrencyFormatter;
 import net.ledok.economy_ld.util.PermissionHelper;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -36,6 +40,13 @@ public final class EcoAdminCommand {
         dispatcher.register(Commands.literal("eco")
                 .then(Commands.literal("give")
                         .requires(source -> PermissionHelper.check(source, "economy_ld.admin.give", 2))
+                        .then(Commands.argument("targets", EntityArgument.players())
+                                .then(Commands.argument("amount", LongArgumentType.longArg(1))
+                                        .executes(ctx -> giveTargets(
+                                                ctx.getSource(),
+                                                EntityArgument.getPlayers(ctx, "targets"),
+                                                LongArgumentType.getLong(ctx, "amount")
+                                        ))))
                         .then(Commands.argument("player", StringArgumentType.string())
                                 .suggests(KNOWN_PLAYERS)
                                 .then(Commands.argument("amount", LongArgumentType.longArg(1))
@@ -56,6 +67,13 @@ public final class EcoAdminCommand {
                                         )))))
                 .then(Commands.literal("set")
                         .requires(source -> PermissionHelper.check(source, "economy_ld.admin.set", 2))
+                        .then(Commands.argument("targets", EntityArgument.players())
+                                .then(Commands.argument("amount", LongArgumentType.longArg(0))
+                                        .executes(ctx -> setTargets(
+                                                ctx.getSource(),
+                                                EntityArgument.getPlayers(ctx, "targets"),
+                                                LongArgumentType.getLong(ctx, "amount")
+                                        ))))
                         .then(Commands.argument("player", StringArgumentType.string())
                                 .suggests(KNOWN_PLAYERS)
                                 .then(Commands.argument("amount", LongArgumentType.longArg(0))
@@ -103,6 +121,27 @@ public final class EcoAdminCommand {
         return 1;
     }
 
+    private static int giveTargets(CommandSourceStack source, Collection<ServerPlayer> targets, long amount) {
+        EconomyManager manager = EconomyManager.getInstance();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (ServerPlayer target : targets) {
+            futures.add(manager.give(target.getUUID(), target.getName().getString(), amount)
+                    .whenComplete((ignored, error) -> source.getServer().execute(() -> {
+                        if (error != null) {
+                            source.sendFailure(Component.translatable("economy_ld.command.eco.give.error", errorMessage(error)));
+                            return;
+                        }
+                        source.sendSuccess(() -> Component.translatable(
+                                "economy_ld.command.eco.give.success",
+                                CurrencyFormatter.format(amount),
+                                target.getName().getString()
+                        ), true);
+                    })));
+        }
+        CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
+        return targets.size();
+    }
+
     private static int take(CommandSourceStack source, String username, long amount) {
         resolveKnownPlayer(source, username).thenCompose(target -> EconomyManager.getInstance().take(target.uuid(), target.username(), amount))
                 .whenComplete((success, error) -> source.getServer().execute(() -> {
@@ -137,6 +176,27 @@ public final class EcoAdminCommand {
                     source.sendSuccess(() -> Component.translatable("economy_ld.command.eco.set.success", username, CurrencyFormatter.format(amount)), true);
                 }));
         return 1;
+    }
+
+    private static int setTargets(CommandSourceStack source, Collection<ServerPlayer> targets, long amount) {
+        EconomyManager manager = EconomyManager.getInstance();
+        List<CompletableFuture<Void>> futures = new ArrayList<>();
+        for (ServerPlayer target : targets) {
+            futures.add(manager.set(target.getUUID(), target.getName().getString(), amount)
+                    .whenComplete((ignored, error) -> source.getServer().execute(() -> {
+                        if (error != null) {
+                            source.sendFailure(Component.translatable("economy_ld.command.eco.set.error", errorMessage(error)));
+                            return;
+                        }
+                        source.sendSuccess(() -> Component.translatable(
+                                "economy_ld.command.eco.set.success",
+                                target.getName().getString(),
+                                CurrencyFormatter.format(amount)
+                        ), true);
+                    })));
+        }
+        CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new));
+        return targets.size();
     }
 
     private static int balance(CommandSourceStack source, String username) {

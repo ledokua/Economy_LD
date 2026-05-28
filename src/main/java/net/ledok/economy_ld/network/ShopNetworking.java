@@ -51,7 +51,7 @@ public final class ShopNetworking {
                 }
                 listings.stream().filter(l -> l.id().equals(payload.listingId())).findFirst().ifPresent(listing -> {
                     int quantity = Math.max(1, payload.quantity());
-                    if (listing.stock() != null && listing.stock() < quantity) {
+                    if (!menu.isAdminShop() && listing.stock() != null && listing.stock() < quantity) {
                         context.server().execute(() -> sendActionResult(context.player(), new ShopActionResultS2CPacket(
                                 ShopActionResultS2CPacket.ActionType.OUT_OF_STOCK,
                                 listing.itemStack().getHoverName().getString(),
@@ -86,7 +86,7 @@ public final class ShopNetworking {
                                 EconomyManager.getInstance().getBalance(context.player().getUUID(), context.player().getName().getString())
                                         .whenComplete((balance, balanceError) -> context.server().execute(() -> {
                                             long currentBalance = balanceError == null && balance != null ? balance : 0L;
-                                            ShopActionResultS2CPacket.ActionType type = (listing.stock() != null && listing.stock() < quantity)
+                                            ShopActionResultS2CPacket.ActionType type = (!menu.isAdminShop() && listing.stock() != null && listing.stock() < quantity)
                                                     ? ShopActionResultS2CPacket.ActionType.OUT_OF_STOCK
                                                     : ShopActionResultS2CPacket.ActionType.INSUFFICIENT_FUNDS;
                                             sendActionResult(context.player(), new ShopActionResultS2CPacket(
