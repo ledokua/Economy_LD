@@ -105,6 +105,10 @@ public interface EconomyDatabase {
 
     CompletableFuture<Void> cleanExpiredDeliveries();
 
+    CompletableFuture<Void> enqueueCurrencyDelivery(UUID playerUuid, long amount, String reason);
+
+    CompletableFuture<Void> enqueueItemDelivery(UUID playerUuid, ItemStack stack, int quantity, String reason);
+
     CompletableFuture<Integer> getEffectiveListingLimit(UUID playerUuid, int defaultLimit);
 
     CompletableFuture<Integer> getAuctionBonusLimit(UUID playerUuid);

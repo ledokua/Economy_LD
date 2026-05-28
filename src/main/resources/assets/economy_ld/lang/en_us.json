@@ -71,5 +71,7 @@
   "economy_ld.auction.inbox.new_items": "📦 You have new items in your auction inbox! Use /ah inbox to claim them.",
   "economy_ld.auction.inbox.expiring_soon": "⚠ You have items in your auction inbox expiring within 24 hours! Use /ah inbox to claim them.",
   "economy_ld.auction.outbid.buyout": "Your bid on %s was displaced — the auction was bought out. Your %s has been refunded.",
-  "economy_ld.auction.item_sent_to_inbox": "📦 Your item has been sent to your auction inbox! Use /ah inbox to claim it."
+  "economy_ld.auction.item_sent_to_inbox": "📦 Your item has been sent to your auction inbox! Use /ah inbox to claim it.",
+  "economy_ld.auction.blocked_busy": "You cannot list items on the auction house right now — finish your current activity first.",
+  "economy_ld.inbox.blocked_busy": "You cannot claim inbox items right now — finish your current activity first."
 }

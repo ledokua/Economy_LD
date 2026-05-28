@@ -55,6 +55,12 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modImplementation "io.wispforest:owo-lib:${project.owo_version}"
 
+    modImplementation fileTree(
+            dir: "${project.projectDir}/libs",
+            include: ["BusyLib-*.jar"],
+            exclude: ["*sources.jar"]
+    )
+
     implementation "com.zaxxer:HikariCP:6.2.1"
     include "com.zaxxer:HikariCP:6.2.1"
 
