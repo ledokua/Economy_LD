@@ -9,6 +9,7 @@ import io.wispforest.owo.ui.container.FlowLayout;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.core.*;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.resources.language.I18n;
 import net.ledok.economy_ld.auction.PendingDelivery;
 import net.ledok.economy_ld.network.packet.c2s.ClaimAllInboxC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.ClaimInboxItemC2SPacket;
@@ -51,7 +52,7 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
     private LabelComponent countLabel;
 
     public AuctionInboxScreen() {
-        super(Component.literal("Auction Inbox"));
+        super(Component.translatable("economy_ld.screen.inbox.title"));
     }
 
     @Override
@@ -118,11 +119,11 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         // Title
         FlowLayout title = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         title.gap(2);
-        title.child(tint("Auction Inbox", C_INK));
+        title.child(tint(I18n.get("economy_ld.screen.inbox.title"), C_INK));
         FlowLayout sub = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         sub.gap(s(6));
-        sub.child(tag("UNCLAIMED ITEMS", C_AMBER));
-        this.countLabel = tint("0 items", C_INK_MID);
+        sub.child(tag(I18n.get("economy_ld.screen.inbox.unclaimed_items"), C_AMBER));
+        this.countLabel = tint(I18n.get("economy_ld.screen.inbox.count", 0), C_INK_MID);
         sub.child(countLabel);
         title.child(sub);
 
@@ -153,7 +154,7 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         center.gap(8);
         this.pageBars = Containers.horizontalFlow(Sizing.fixed(100), Sizing.fixed(4));
         this.pageBars.gap(2);
-        this.pageLabel = tint("PAGE  01 / 01", C_INK_MID);
+        this.pageLabel = tint(I18n.get("economy_ld.screen.inbox.page", "01", "01"), C_INK_MID);
         center.child(pageBars);
         center.child(pageLabel);
         footer.child(center);
@@ -162,7 +163,7 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
                 b -> { currentPage++; refreshUi(); });
         footer.child(nextButton);
 
-        footer.child(smallBtn(compact ? "ALL" : "CLAIM ALL", compact ? 50 : 110, s(32),
+        footer.child(smallBtn(compact ? I18n.get("economy_ld.screen.inbox.claim_all_short") : I18n.get("economy_ld.screen.inbox.claim_all"), compact ? 50 : 110, s(32),
                 C_AMBER_DK, C_AMBER, 0xFFF5C870,
                 b -> ClientPlayNetworking.send(new ClaimAllInboxC2SPacket())));
         return footer;
@@ -174,7 +175,9 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         List<PendingDelivery> deliveries = InboxClientState.getDeliveries();
 
         if (countLabel != null)
-            countLabel.text(Component.literal(deliveries.size() + (deliveries.size() == 1 ? " item" : " items")));
+            countLabel.text(Component.literal(deliveries.size() == 1
+                    ? I18n.get("economy_ld.screen.inbox.count_one", deliveries.size())
+                    : I18n.get("economy_ld.screen.inbox.count", deliveries.size())));
 
         int totalPages = Math.max(1, (deliveries.size() + rowsPerPage - 1) / rowsPerPage);
         if (currentPage >= totalPages) currentPage = totalPages - 1;
@@ -183,7 +186,7 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         if (prevButton != null) prevButton.active(currentPage > 0);
         if (nextButton != null) nextButton.active(currentPage < totalPages - 1);
         if (pageLabel != null)
-            pageLabel.text(Component.literal("PAGE  " + String.format("%02d", currentPage + 1) + " / " + String.format("%02d", totalPages)));
+            pageLabel.text(Component.literal(I18n.get("economy_ld.screen.inbox.page", String.format("%02d", currentPage + 1), String.format("%02d", totalPages))));
         rebuildPageBars(totalPages, currentPage);
 
         if (deliveries.isEmpty()) {
@@ -196,11 +199,11 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         colH.surface(Surface.flat(0xFF172433));
         colH.padding(Insets.of(4, s(8), 4, s(8)));
         colH.gap(8);
-        colH.child(cellLabel("ITEM", compact ? 180 : 260, C_INK_DIM));
-        colH.child(cellLabel("TYPE", 90, C_INK_DIM));
+        colH.child(cellLabel(I18n.get("economy_ld.screen.inbox.col.item"), compact ? 180 : 260, C_INK_DIM));
+        colH.child(cellLabel(I18n.get("economy_ld.screen.inbox.col.type"), 90, C_INK_DIM));
         colH.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
-        colH.child(cellLabelR("EXPIRES IN", 90, C_INK_DIM));
-        colH.child(cellLabelR("COLLECT", 72, C_INK_DIM));
+        colH.child(cellLabelR(I18n.get("economy_ld.screen.inbox.col.expires_in"), 90, C_INK_DIM));
+        colH.child(cellLabelR(I18n.get("economy_ld.screen.inbox.col.collect"), 72, C_INK_DIM));
         contentArea.child(colH);
 
         // Paginated rows
@@ -238,8 +241,8 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
         iconBox.child(tint("✉", C_INK_DIM));
         empty.child(iconBox);
 
-        empty.child(tint("Your inbox is empty.", C_INK_MID));
-        empty.child(tint("Items won at auction or from cancelled listings appear here.", C_INK_DIM));
+        empty.child(tint(I18n.get("economy_ld.screen.inbox.empty.title"), C_INK_MID));
+        empty.child(tint(I18n.get("economy_ld.screen.inbox.empty.subtitle"), C_INK_DIM));
         contentArea.child(empty);
     }
 
@@ -281,7 +284,7 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
             FlowLayout txt = Containers.verticalFlow(Sizing.expand(), Sizing.content());
             txt.gap(1);
             txt.child(tint(String.format("%,d", delivery.lcAmount() != null ? delivery.lcAmount() : 0) + " LC", C_GREEN));
-            txt.child(tint("Coins", C_INK_DIM));
+            txt.child(tint(I18n.get("economy_ld.screen.inbox.coins"), C_INK_DIM));
             itemCell.child(txt);
         }
         row.child(itemCell);
@@ -298,7 +301,7 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
 
         // Collect button
         long deliveryId = delivery.id();
-        ButtonComponent collectBtn = Components.button(Component.literal("COLLECT"), b ->
+        ButtonComponent collectBtn = Components.button(Component.literal(I18n.get("economy_ld.screen.inbox.btn.collect")), b ->
                 ClientPlayNetworking.send(new ClaimInboxItemC2SPacket(deliveryId)));
         collectBtn.sizing(Sizing.fixed(s(70)), Sizing.fixed(s(26)));
         collectBtn.renderer((ctx, rendered, delta) -> {
@@ -321,7 +324,7 @@ public class AuctionInboxScreen extends BaseOwoScreen<StackLayout> {
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
     private static String formatTime(long sec) {
-        if (sec <= 0) return "EXPIRED";
+        if (sec <= 0) return I18n.get("economy_ld.screen.inbox.time.expired");
         if (sec < 60) return sec + "s";
         if (sec < 3600) return (sec / 60) + "m";
         if (sec < 86400) return (sec / 3600) + "h " + ((sec % 3600) / 60) + "m";

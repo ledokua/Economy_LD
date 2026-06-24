@@ -25,6 +25,7 @@
     "busylib": "*"
   },
   "suggests": {
-    "luckperms": "*"
+    "luckperms": "*",
+    "ftbquests": "*"
   }
 }
