@@ -28,6 +28,7 @@ import net.ledok.economy_ld.network.packet.c2s.SellItemC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.UpdateListingC2SPacket;
 import net.ledok.economy_ld.screen.ShopBrowseScreenHandler;
 import net.ledok.economy_ld.shop.ShopListing;
+import net.minecraft.client.resources.language.I18n;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.Inventory;
@@ -88,10 +89,10 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
 
         String label() {
             return switch (this) {
-                case NAME -> "SORT · NAME";
-                case BUY_PRICE -> "SORT · BUY";
-                case SELL_PRICE -> "SORT · SELL";
-                case STOCK -> "SORT · STOCK";
+                case NAME -> I18n.get("economy_ld.screen.shop.sort.name");
+                case BUY_PRICE -> I18n.get("economy_ld.screen.shop.sort.buy");
+                case SELL_PRICE -> I18n.get("economy_ld.screen.shop.sort.sell");
+                case STOCK -> I18n.get("economy_ld.screen.shop.sort.stock");
             };
         }
     }
@@ -235,14 +236,14 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         bar.padding(Insets.both(8, 6));
         bar.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
         bar.gap(8);
-        bar.child(tint("FIND", 0xFF6D8299));
+        bar.child(tint(I18n.get("economy_ld.screen.shop.search.find"), 0xFF6D8299));
         bar.child(tint(">", 0xFF4A5F78));
         TextBoxComponent field = Components.textBox(Sizing.expand(), searchQuery);
         field.setMaxLength(64);
-        field.setSuggestion(searchQuery.isEmpty() ? "name  |  @mod  |  #tag" : "");
+        field.setSuggestion(searchQuery.isEmpty() ? I18n.get("economy_ld.screen.shop.search_hint") : "");
         field.onChanged().subscribe(v -> {
             searchQuery = v;
-            field.setSuggestion(v.isEmpty() ? "name  |  @mod  |  #tag" : "");
+            field.setSuggestion(v.isEmpty() ? I18n.get("economy_ld.screen.shop.search_hint") : "");
             menu.setPage(0);
             refreshUi(true);
         });
@@ -263,7 +264,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         List<ShopListing> listings = applyFilterAndSort(allListings);
         boolean adminShop = ShopClientState.isAdminShop(shopId);
         boolean canManage = ShopClientState.canManage(shopId);
-        String owner = adminShop ? "Server" : ShopClientState.ownerLabel(shopId);
+        String owner = adminShop ? I18n.get("economy_ld.screen.shop.owner.server") : ShopClientState.ownerLabel(shopId);
         long balance = ShopClientState.openerBalance(shopId);
 
         int totalPages = Math.max(1, (listings.size() + listingsPerPage - 1) / listingsPerPage);
@@ -272,13 +273,13 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         int currentPageIndex = this.menu.getPage();
         boolean pageChanged = this.lastCurrentPage != currentPage;
 
-        this.ownerLabel.text(Component.literal("OWNER  ·  " + owner));
+        this.ownerLabel.text(Component.literal(I18n.get("economy_ld.screen.shop.owner_prefix", owner)));
         String countText = searchQuery.isBlank()
-                ? "LISTINGS  ·  " + allListings.size()
-                : "LISTINGS  ·  " + listings.size() + " / " + allListings.size();
+                ? I18n.get("economy_ld.screen.shop.listings_count", allListings.size())
+                : I18n.get("economy_ld.screen.shop.listings_count_filtered", listings.size(), allListings.size());
         if (!compact) this.listingCountLabel.text(Component.literal(countText));
-        if (!compact) this.balanceLabel.text(Component.literal("BAL  ·  " + String.format("%,d", balance) + " LC"));
-        this.pageLabel.text(Component.literal("PAGE  " + String.format("%02d", currentPage) + " / " + String.format("%02d", totalPages)));
+        if (!compact) this.balanceLabel.text(Component.literal(I18n.get("economy_ld.screen.shop.balance", String.format("%,d", balance))));
+        this.pageLabel.text(Component.literal(I18n.get("economy_ld.screen.shop.page", String.format("%02d", currentPage), String.format("%02d", totalPages))));
         this.prevButton.active(currentPage > 1);
         this.nextButton.active(currentPage < totalPages);
         this.newListingButton.active(canManage);
@@ -320,14 +321,14 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
 
         FlowLayout title = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         title.gap(1);
-        title.child(tint("LeDok's Wares", 0xFFE7EDF5));
+        title.child(tint(I18n.get("economy_ld.screen.shop.title"), 0xFFE7EDF5));
 
         FlowLayout subtitle = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         subtitle.gap(6);
-        subtitle.child(tag("PLAYER SHOP"));
-        this.ownerLabel = tint("OWNER  ·  Unknown", 0xFF8FA1B5);
-        this.listingCountLabel = tint("LISTINGS  ·  0", 0xFF8FA1B5);
-        this.balanceLabel = tint("BAL  ·  0 LC", 0xFF9D81EA);
+        subtitle.child(tag(I18n.get("economy_ld.screen.shop.tag.player_shop")));
+        this.ownerLabel = tint(I18n.get("economy_ld.screen.shop.owner_prefix", I18n.get("economy_ld.screen.shop.owner.unknown")), 0xFF8FA1B5);
+        this.listingCountLabel = tint(I18n.get("economy_ld.screen.shop.listings_count", 0), 0xFF8FA1B5);
+        this.balanceLabel = tint(I18n.get("economy_ld.screen.shop.balance", "0"), 0xFF9D81EA);
         subtitle.child(this.ownerLabel);
         if (!compact) subtitle.child(this.listingCountLabel);
         if (!compact) subtitle.child(this.balanceLabel);
@@ -338,7 +339,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         controls.child(smallButton("⌕", 38, 32, 0xFF132131, 0xFF193047, 0xFF334A60, b -> toggleSearch()));
         this.sortButton = smallButton(sortMode.label(), 110, 32, 0xFF132131, 0xFF193047, 0xFF334A60, b -> cycleSortMode());
         controls.child(this.sortButton);
-        this.newListingButton = smallButton("+ NEW LISTING", 132, 32, 0xFF9A77E8, 0xFFAA8AF0, 0xFFC4AFFF, button -> openItemPicker());
+        this.newListingButton = smallButton(I18n.get("economy_ld.screen.shop.btn.new_listing"), 132, 32, 0xFF9A77E8, 0xFFAA8AF0, 0xFFC4AFFF, button -> openItemPicker());
         controls.child(this.newListingButton);
         controls.child(smallButton("⋯", 38, 32, 0xFF132131, 0xFF193047, 0xFF334A60));
         controls.child(smallButton("✕", 32, 32, 0xFF132131, 0xFF193047, 0xFF334A60, button -> this.onClose()));
@@ -369,10 +370,10 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         plusBox.child(tint("+", 0xFF7A95AF));
 
         body.child(plusBox);
-        body.child(tint("No listings yet", 0xFFE4EBF4));
-        body.child(tint("Drop an item from your inventory or click + New", 0xFF93A3B6));
-        body.child(tint("Listing to begin trading.", 0xFF93A3B6));
-        this.firstListingButton = largeCta("+ ADD YOUR FIRST LISTING", button -> openItemPicker());
+        body.child(tint(I18n.get("economy_ld.screen.shop.empty.title"), 0xFFE4EBF4));
+        body.child(tint(I18n.get("economy_ld.screen.shop.empty.line1"), 0xFF93A3B6));
+        body.child(tint(I18n.get("economy_ld.screen.shop.empty.line2"), 0xFF93A3B6));
+        this.firstListingButton = largeCta(I18n.get("economy_ld.screen.shop.btn.add_first"), button -> openItemPicker());
         body.child(this.firstListingButton);
         return body;
     }
@@ -401,12 +402,12 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         colHeader.surface(Surface.flat(0xFF172433));
         colHeader.padding(Insets.of(4));
         colHeader.gap(8);
-        colHeader.child(cellLabel("ITEM", itemCellW, 0xFF6D8299));
-        colHeader.child(cellLabel("BUY", priceW, 0xFF6D8299));
-        colHeader.child(cellLabel("SELL", priceW, 0xFF6D8299));
-        colHeader.child(cellLabel("STOCK", stockW, 0xFF6D8299));
+        colHeader.child(cellLabel(I18n.get("economy_ld.screen.shop.col.item"), itemCellW, 0xFF6D8299));
+        colHeader.child(cellLabel(I18n.get("economy_ld.screen.shop.col.buy"), priceW, 0xFF6D8299));
+        colHeader.child(cellLabel(I18n.get("economy_ld.screen.shop.col.sell"), priceW, 0xFF6D8299));
+        colHeader.child(cellLabel(I18n.get("economy_ld.screen.shop.col.stock"), stockW, 0xFF6D8299));
         colHeader.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
-        colHeader.child(cellLabelRight("ACTIONS", actionsW, 0xFF6D8299));
+        colHeader.child(cellLabelRight(I18n.get("economy_ld.screen.shop.col.actions"), actionsW, 0xFF6D8299));
         body.child(colHeader);
 
         int start = this.menu.getPage() * listingsPerPage;
@@ -450,16 +451,16 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         actions.gap(6);
 
         if (canManage) {
-            actions.child(smallButton("EDIT", 56, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openEditDialog(listing)));
+            actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.edit"), 56, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openEditDialog(listing)));
             if (!adminShop) {
-                actions.child(smallButton("RESTOCK", 70, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openRestockDialog(listing)));
+                actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.restock"), 70, 24, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> openRestockDialog(listing)));
             }
-            actions.child(smallButton("REMOVE", 62, 24, 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F, b -> openRemoveConfirmDialog(listing)));
+            actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.remove"), 62, 24, 0xFF2B1B1B, 0xFF3B2323, 0xFF7A3F3F, b -> openRemoveConfirmDialog(listing)));
         } else {
             if (listing.priceBuy() != null)
-                actions.child(smallButton("BUY", s(56), s(24), 0xFF1A2E1A, 0xFF244A24, 0xFF3A7A3A, b -> ClientPlayNetworking.send(new BuyItemC2SPacket(listing.id(), listing.perOp()))));
+                actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.buy"), s(56), s(24), 0xFF1A2E1A, 0xFF244A24, 0xFF3A7A3A, b -> ClientPlayNetworking.send(new BuyItemC2SPacket(listing.id(), listing.perOp()))));
             if (listing.priceSell() != null)
-                actions.child(smallButton("SELL", s(56), s(24), 0xFF1E1A2E, 0xFF2A2244, 0xFF6A52B8, b -> ClientPlayNetworking.send(new SellItemC2SPacket(listing.id(), listing.perOp()))));
+                actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.sell"), s(56), s(24), 0xFF1E1A2E, 0xFF2A2244, 0xFF6A52B8, b -> ClientPlayNetworking.send(new SellItemC2SPacket(listing.id(), listing.perOp()))));
             if (listing.priceBuy() == null && listing.priceSell() == null)
                 actions.child(tint("–", 0xFF4A5F78));
         }
@@ -476,10 +477,10 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         footer.padding(Insets.of(12));
         footer.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
 
-        this.prevButton = smallButton("◀ PREV", 78, 30, 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
+        this.prevButton = smallButton("◀ " + I18n.get("economy_ld.screen.shop.btn.prev"), 78, 30, 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
         this.prevButton.onPress(b -> { this.menu.setPage(Math.max(0, this.menu.getPage() - 1)); refreshUi(true); });
 
-        this.nextButton = smallButton("NEXT ▶", 78, 30, 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
+        this.nextButton = smallButton(I18n.get("economy_ld.screen.shop.btn.next") + " ▶", 78, 30, 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
         this.nextButton.onPress(b -> { this.menu.setPage(this.menu.getPage() + 1); refreshUi(true); });
 
         FlowLayout center = Containers.horizontalFlow(Sizing.expand(), Sizing.content());
@@ -488,7 +489,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
 
         this.pageBars = Containers.horizontalFlow(Sizing.fixed(150), Sizing.fixed(4));
         this.pageBars.gap(2);
-        this.pageLabel = tint("PAGE  01 / 01", 0xFFD0DBE7);
+        this.pageLabel = tint(I18n.get("economy_ld.screen.shop.page", "01", "01"), 0xFFD0DBE7);
         center.child(this.pageBars);
         center.child(this.pageLabel);
 
@@ -535,8 +536,8 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         // Header
         FlowLayout head = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
         head.gap(3);
-        head.child(tint("Restock", 0xFFE6EDF7));
-        head.child(tint("MOVE ITEMS FROM INVENTORY INTO SHOP STOCK", 0xFF6D8299));
+        head.child(tint(I18n.get("economy_ld.screen.shop.restock.title"), 0xFFE6EDF7));
+        head.child(tint(I18n.get("economy_ld.screen.shop.restock.subtitle"), 0xFF6D8299));
 
         // Body
         FlowLayout body = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
@@ -554,13 +555,13 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout itemCardText = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         itemCardText.gap(2);
         itemCardText.child(tint(listing.itemStack().getHoverName().getString(), 0xFFE6EDF7));
-        String stockLabel = listing.stock() == null ? "CURRENT STOCK  ·  ∞" : "CURRENT STOCK  ·  " + listing.stock();
+        String stockLabel = listing.stock() == null ? I18n.get("economy_ld.screen.shop.restock.current_stock", "∞") : I18n.get("economy_ld.screen.shop.restock.current_stock", listing.stock());
         itemCardText.child(tint(stockLabel, 0xFF8DA2B8));
         itemCard.child(itemCardText);
         FlowLayout invSection = Containers.verticalFlow(Sizing.content(), Sizing.content());
         invSection.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
         invSection.gap(2);
-        invSection.child(tint("IN INVENTORY", 0xFF6D8299));
+        invSection.child(tint(I18n.get("economy_ld.screen.shop.restock.in_inventory"), 0xFF6D8299));
         LabelComponent invLabel = tint(String.valueOf(maxRestock), 0xFFE6EDF7);
         invSection.child(invLabel);
         itemCard.child(invSection);
@@ -570,9 +571,9 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout fieldSection = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
         fieldSection.gap(6);
         FlowLayout fieldHead = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        fieldHead.child(tint("ADD TO STOCK", 0xFF9CB2C8));
+        fieldHead.child(tint(I18n.get("economy_ld.screen.shop.restock.add_to_stock"), 0xFF9CB2C8));
         fieldHead.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
-        fieldHead.child(tint("Items will be taken from your inventory", 0xFF6D8299));
+        fieldHead.child(tint(I18n.get("economy_ld.screen.shop.restock.taken_note"), 0xFF6D8299));
         fieldSection.child(fieldHead);
 
         FlowLayout inputWrap = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(40));
@@ -597,14 +598,14 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
                 qtyInput.text(String.valueOf(Math.min(maxRestock, cur + val)));
             }));
         }
-        String allLabel = "ALL (" + maxRestock + ")";
+        String allLabel = I18n.get("economy_ld.screen.shop.restock.all", maxRestock);
         chips.child(smallButton(allLabel, Math.max(80, allLabel.length() * 6 + 16), 28, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A,
                 b -> qtyInput.text(String.valueOf(maxRestock))));
         fieldSection.child(chips);
         body.child(fieldSection);
 
         // Actions
-        ButtonComponent addBtn = Components.button(Component.literal("+ ADD 64"), b -> {
+        ButtonComponent addBtn = Components.button(Component.literal(I18n.get("economy_ld.screen.shop.restock.add", 64)), b -> {
             long qty = Math.min(maxRestock, Math.max(1, parseLongField(qtyValue[0], 0)));
             if (qty > 0) ClientPlayNetworking.send(new RestockListingC2SPacket(listing.id(), (int) qty));
             closeListingDialog();
@@ -617,13 +618,13 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         });
         qtyInput.onChanged().subscribe(v -> {
             long qty = Math.min(maxRestock, Math.max(0, parseLongField(v, 0)));
-            addBtn.setMessage(Component.literal("+ ADD " + qty));
+            addBtn.setMessage(Component.literal(I18n.get("economy_ld.screen.shop.restock.add", qty)));
         });
 
         FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
         actions.gap(6);
-        actions.child(smallButton("CANCEL", 98, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
+        actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.cancel"), 98, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
         actions.child(addBtn);
 
         panel.child(head);
@@ -656,7 +657,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         head.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
         FlowLayout titlePack = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         titlePack.gap(1);
-        titlePack.child(tint("Edit Listing", 0xFFE6EDF7));
+        titlePack.child(tint(I18n.get("economy_ld.screen.shop.edit.title"), 0xFFE6EDF7));
         titlePack.child(tint(listing.itemStack().getItem().toString().toUpperCase(), 0xFF7E93AA));
         head.child(titlePack);
         head.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
@@ -676,7 +677,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout itemCardText = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         itemCardText.gap(2);
         itemCardText.child(tint(listing.itemStack().getHoverName().getString(), 0xFFE6EDF7));
-        String stockLabel = listing.stock() == null ? "∞  IN STOCK" : "x" + listing.stock() + "  IN STOCK";
+        String stockLabel = listing.stock() == null ? I18n.get("economy_ld.screen.shop.edit.in_stock", "∞") : I18n.get("economy_ld.screen.shop.edit.in_stock", "x" + listing.stock());
         itemCardText.child(tint(stockLabel, 0xFF8DA2B8));
         itemCard.child(itemCardText);
         body.child(itemCard);
@@ -687,15 +688,15 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout row1 = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         row1.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
         row1.gap(12);
-        FieldUi buyField = createDialogField(row1, "BUY PRICE", "player buys from shop", buyValue[0], "LC", buyValue);
-        FieldUi sellField = createDialogField(row1, "SELL PRICE", "shop buys from player", sellValue[0], "LC", sellValue);
+        FieldUi buyField = createDialogField(row1, I18n.get("economy_ld.screen.shop.field.buy_price"), I18n.get("economy_ld.screen.shop.field.buy_price_hint"), buyValue[0], "LC", buyValue);
+        FieldUi sellField = createDialogField(row1, I18n.get("economy_ld.screen.shop.field.sell_price"), I18n.get("economy_ld.screen.shop.field.sell_price_hint"), sellValue[0], "LC", sellValue);
         body.child(row1);
 
         FlowLayout row2 = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         row2.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
         row2.gap(12);
-        FieldUi perOpField = createDialogField(row2, "ITEMS PER OP", "per buy / sell click", perOpValue[0], "x", perOpValue);
-        FieldUi buyCapField = createDialogField(row2, "BUY CAP", "max stock from players", buyCapValue[0], "max", buyCapValue);
+        FieldUi perOpField = createDialogField(row2, I18n.get("economy_ld.screen.shop.field.per_op"), I18n.get("economy_ld.screen.shop.field.per_op_hint"), perOpValue[0], "x", perOpValue);
+        FieldUi buyCapField = createDialogField(row2, I18n.get("economy_ld.screen.shop.field.buy_cap"), I18n.get("economy_ld.screen.shop.field.buy_cap_hint"), buyCapValue[0], I18n.get("economy_ld.screen.shop.field.suffix_max"), buyCapValue);
         body.child(row2);
 
         FlowLayout summary = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
@@ -709,7 +710,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout errorBanner = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(38));
         errorBanner.padding(Insets.of(8));
         errorBanner.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
-        LabelComponent errorText = tint("⚠ SET AT LEAST ONE PRICE.", 0xFFE7B69F);
+        LabelComponent errorText = tint(I18n.get("economy_ld.screen.shop.err.set_price"), 0xFFE7B69F);
         errorBanner.child(errorText);
         body.child(errorBanner);
 
@@ -721,14 +722,14 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
             applyFieldStyle(sellField, sell > 0 ? FieldStyle.ACTIVE : FieldStyle.INVALID);
             applyFieldStyle(perOpField, FieldStyle.ACTIVE);
             applyFieldStyle(buyCapField, sell > 0 ? FieldStyle.ACTIVE : FieldStyle.DIMMED);
-            previewLine1.text(Component.literal(buy > 0 ? "→ PLAYER BUYS ×" + perOp + " FOR " + String.format("%,d", buy) + " LC" : ""));
+            previewLine1.text(Component.literal(buy > 0 ? I18n.get("economy_ld.screen.shop.preview.buy", perOp, String.format("%,d", buy)) : ""));
             if (sell > 0) {
-                previewLine2.text(Component.literal("← SHOP BUYS ×" + perOp + " FOR " + String.format("%,d", sell) + " LC" + (buyCap > 0 ? " UP TO " + buyCap : "")));
+                previewLine2.text(Component.literal(I18n.get("economy_ld.screen.shop.preview.sell", perOp, String.format("%,d", sell)) + (buyCap > 0 ? I18n.get("economy_ld.screen.shop.preview.up_to", buyCap) : "")));
             } else {
                 previewLine2.text(Component.literal(""));
             }
             errorBanner.surface(valid ? Surface.flat(0x00000000) : Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33)));
-            errorText.text(Component.literal(valid ? "" : "⚠ SET AT LEAST ONE PRICE."));
+            errorText.text(Component.literal(valid ? "" : I18n.get("economy_ld.screen.shop.err.set_price")));
         };
         buyField.input().onChanged().subscribe(v -> refreshPreview.run());
         sellField.input().onChanged().subscribe(v -> refreshPreview.run());
@@ -739,12 +740,12 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
         actions.gap(6);
-        actions.child(smallButton("CANCEL", 98, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
-        actions.child(smallButton("CONFIRM", 108, 32, 0xFF9A77E8, 0xFFAA8AF0, 0xFFC4AFFF, b -> {
+        actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.cancel"), 98, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
+        actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.confirm"), 108, 32, 0xFF9A77E8, 0xFFAA8AF0, 0xFFC4AFFF, b -> {
             long buy = parseLongField(buyValue[0], 0), sell = parseLongField(sellValue[0], 0);
             if (buy <= 0 && sell <= 0) {
                 errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33)));
-                errorText.text(Component.literal("⚠ SET AT LEAST ONE PRICE."));
+                errorText.text(Component.literal(I18n.get("economy_ld.screen.shop.err.set_price")));
                 return;
             }
             long perOp = Math.max(1, parseLongField(perOpValue[0], 1));
@@ -799,8 +800,8 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         head.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
         FlowLayout titlePack = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         titlePack.gap(2);
-        titlePack.child(tint("New Listing", 0xFFE6EDF7));
-        titlePack.child(tint("SELECT AN ITEM FROM YOUR INVENTORY", 0xFF6D8299));
+        titlePack.child(tint(I18n.get("economy_ld.screen.shop.dialog.new_listing"), 0xFFE6EDF7));
+        titlePack.child(tint(I18n.get("economy_ld.screen.shop.picker.subtitle"), 0xFF6D8299));
         head.child(titlePack);
         head.child(smallButton("✕", 28, 28, 0xFF132131, 0xFF193047, 0xFF334A60, b -> closeListingDialog()));
         panel.child(head);
@@ -814,7 +815,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         if (slots.isEmpty()) {
             FlowLayout empty = Containers.verticalFlow(Sizing.fill(100), Sizing.fixed(80));
             empty.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
-            empty.child(tint("Your inventory is empty.", 0xFF6D8299));
+            empty.child(tint(I18n.get("economy_ld.screen.shop.picker.empty"), 0xFF6D8299));
             body.child(empty);
         } else {
             // Rows of 9 slots each
@@ -865,7 +866,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         // Footer
         FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
-        actions.child(smallButton("CANCEL", 98, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
+        actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.cancel"), 98, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
         panel.child(actions);
 
         this.listingDialog = Containers.overlay(panel);
@@ -889,8 +890,8 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         head.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
         FlowLayout titlePack = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         titlePack.gap(1);
-        titlePack.child(tint("New Listing", 0xFFE6EDF7));
-        titlePack.child(tint(selectedStack.isEmpty() ? "EMPTY" : selectedStack.getItem().toString().toUpperCase(), 0xFF7E93AA));
+        titlePack.child(tint(I18n.get("economy_ld.screen.shop.dialog.new_listing"), 0xFFE6EDF7));
+        titlePack.child(tint(selectedStack.isEmpty() ? I18n.get("economy_ld.screen.shop.price.empty_item") : selectedStack.getItem().toString().toUpperCase(), 0xFF7E93AA));
         head.child(titlePack);
         head.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
         head.child(smallButton("✕", 28, 28, 0xFF132131, 0xFF193047, 0xFF334A60, b -> closeListingDialog()));
@@ -908,11 +909,11 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         itemCard.child(Components.item(selectedStack).showOverlay(true).setTooltipFromStack(true));
         FlowLayout itemCardText = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         itemCardText.gap(2);
-        itemCardText.child(tint(selectedStack.isEmpty() ? "No Item Selected" : selectedStack.getHoverName().getString(), 0xFFE6EDF7));
-        itemCardText.child(tint("x0  IN STOCK", 0xFF8DA2B8));
+        itemCardText.child(tint(selectedStack.isEmpty() ? I18n.get("economy_ld.screen.shop.price.no_item_selected") : selectedStack.getHoverName().getString(), 0xFFE6EDF7));
+        itemCardText.child(tint(I18n.get("economy_ld.screen.shop.price.zero_stock"), 0xFF8DA2B8));
         itemCard.child(itemCardText);
         // Back button — returns to item picker
-        ButtonComponent backBtn = smallButton("◀ BACK", 72, 32, 0xFF132131, 0xFF193047, 0xFF334A60, b -> {
+        ButtonComponent backBtn = smallButton("◀ " + I18n.get("economy_ld.screen.shop.btn.back"), 72, 32, 0xFF132131, 0xFF193047, 0xFF334A60, b -> {
             closeListingDialog();
             openItemPicker();
         });
@@ -925,15 +926,15 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout row1 = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         row1.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
         row1.gap(12);
-        FieldUi buyField = createDialogField(row1, "BUY PRICE", "player buys from shop", "0", "LC", buyValue);
-        FieldUi sellField = createDialogField(row1, "SELL PRICE", "shop buys from player", "0", "LC", sellValue);
+        FieldUi buyField = createDialogField(row1, I18n.get("economy_ld.screen.shop.field.buy_price"), I18n.get("economy_ld.screen.shop.field.buy_price_hint"), "0", "LC", buyValue);
+        FieldUi sellField = createDialogField(row1, I18n.get("economy_ld.screen.shop.field.sell_price"), I18n.get("economy_ld.screen.shop.field.sell_price_hint"), "0", "LC", sellValue);
         body.child(row1);
 
         FlowLayout row2 = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         row2.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
         row2.gap(12);
-        FieldUi perOpField = createDialogField(row2, "ITEMS PER OP", "per buy / sell click", "1", "x", perOpValue);
-        FieldUi buyCapField = createDialogField(row2, "BUY CAP", "max stock from players", "256", "max", buyCapValue);
+        FieldUi perOpField = createDialogField(row2, I18n.get("economy_ld.screen.shop.field.per_op"), I18n.get("economy_ld.screen.shop.field.per_op_hint"), "1", "x", perOpValue);
+        FieldUi buyCapField = createDialogField(row2, I18n.get("economy_ld.screen.shop.field.buy_cap"), I18n.get("economy_ld.screen.shop.field.buy_cap_hint"), "256", I18n.get("economy_ld.screen.shop.field.suffix_max"), buyCapValue);
         body.child(row2);
 
         FlowLayout summary = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
@@ -947,7 +948,7 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout errorBanner = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(38));
         errorBanner.padding(Insets.of(8));
         errorBanner.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
-        LabelComponent errorText = tint("⚠ SET AT LEAST ONE PRICE.", 0xFFE7B69F);
+        LabelComponent errorText = tint(I18n.get("economy_ld.screen.shop.err.set_price"), 0xFFE7B69F);
         errorBanner.child(errorText);
         body.child(errorBanner);
 
@@ -959,14 +960,14 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
             applyFieldStyle(sellField, sell > 0 ? FieldStyle.ACTIVE : FieldStyle.INVALID);
             applyFieldStyle(perOpField, FieldStyle.ACTIVE);
             applyFieldStyle(buyCapField, sell > 0 ? FieldStyle.ACTIVE : FieldStyle.DIMMED);
-            previewLine1.text(Component.literal(buy > 0 ? "→ PLAYER BUYS ×" + perOp + " FOR " + String.format("%,d", buy) + " LC" : ""));
+            previewLine1.text(Component.literal(buy > 0 ? I18n.get("economy_ld.screen.shop.preview.buy", perOp, String.format("%,d", buy)) : ""));
             if (sell > 0) {
-                previewLine2.text(Component.literal("← SHOP BUYS ×" + perOp + " FOR " + String.format("%,d", sell) + " LC" + (buyCap > 0 ? " UP TO " + buyCap : "")));
+                previewLine2.text(Component.literal(I18n.get("economy_ld.screen.shop.preview.sell", perOp, String.format("%,d", sell)) + (buyCap > 0 ? I18n.get("economy_ld.screen.shop.preview.up_to", buyCap) : "")));
             } else {
                 previewLine2.text(Component.literal(""));
             }
             errorBanner.surface(valid ? Surface.flat(0x00000000) : Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33)));
-            errorText.text(Component.literal(valid ? "" : "⚠ SET AT LEAST ONE PRICE."));
+            errorText.text(Component.literal(valid ? "" : I18n.get("economy_ld.screen.shop.err.set_price")));
         };
         buyField.input().onChanged().subscribe(v -> refreshPreview.run());
         sellField.input().onChanged().subscribe(v -> refreshPreview.run());
@@ -977,15 +978,15 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
         actions.gap(6);
-        actions.child(smallButton("CANCEL", 98, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
-        actions.child(smallButton("CONFIRM", 108, 32, 0xFF9A77E8, 0xFFAA8AF0, 0xFFC4AFFF, b -> {
+        actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.cancel"), 98, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
+        actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.confirm"), 108, 32, 0xFF9A77E8, 0xFFAA8AF0, 0xFFC4AFFF, b -> {
             long buy = parseLongField(buyValue[0], 0), sell = parseLongField(sellValue[0], 0);
-            if (buy <= 0 && sell <= 0) { errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33))); errorText.text(Component.literal("⚠ SET AT LEAST ONE PRICE.")); return; }
-            if (selectedStack.isEmpty()) { errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33))); errorText.text(Component.literal("⚠ NO ITEM SELECTED.")); return; }
+            if (buy <= 0 && sell <= 0) { errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33))); errorText.text(Component.literal(I18n.get("economy_ld.screen.shop.err.set_price"))); return; }
+            if (selectedStack.isEmpty()) { errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33))); errorText.text(Component.literal(I18n.get("economy_ld.screen.shop.err.no_item"))); return; }
             if (this.minecraft == null || this.minecraft.level == null) return;
             long perOp = Math.max(1, parseLongField(perOpValue[0], 1));
             long buyCap = Math.max(0, parseLongField(buyCapValue[0], 0));
-            if (!(selectedStack.saveOptional(this.minecraft.level.registryAccess()) instanceof CompoundTag itemNbt)) { errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33))); errorText.text(Component.literal("⚠ FAILED TO SERIALIZE ITEM.")); return; }
+            if (!(selectedStack.saveOptional(this.minecraft.level.registryAccess()) instanceof CompoundTag itemNbt)) { errorBanner.surface(Surface.flat(0xFF5A231D).and(Surface.outline(0xFF9B3F33))); errorText.text(Component.literal(I18n.get("economy_ld.screen.shop.err.serialize"))); return; }
             ClientPlayNetworking.send(new AddListingC2SPacket(activeShopId(), itemNbt, buy > 0 ? buy : null, sell > 0 ? sell : null, (int) Math.min(Integer.MAX_VALUE, perOp), buyCap > 0 ? buyCap : null));
             closeListingDialog();
         }));
@@ -1132,8 +1133,8 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
                 context.fill(component.x(), component.y(), component.x() + 3, component.y() + component.height(), 0xFFE05050)));
         head.padding(Insets.of(14, 12, 10, 16));
         head.gap(3);
-        head.child(tint("Remove Listing", 0xFFE85050));
-        head.child(tint("STOCK WILL RETURN TO YOUR STORAGE", 0xFF8A6060));
+        head.child(tint(I18n.get("economy_ld.screen.shop.remove.title"), 0xFFE85050));
+        head.child(tint(I18n.get("economy_ld.screen.shop.remove.subtitle"), 0xFF8A6060));
         panel.child(head);
 
         // Item card
@@ -1151,10 +1152,10 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
 
         // Summary line: "3 stock · 220 buy · 90 sell"
         StringBuilder summary = new StringBuilder();
-        if (listing.stock() != null) summary.append(listing.stock()).append(" stock");
-        else summary.append("∞ stock");
-        if (listing.priceBuy() != null) summary.append("  ·  ").append(String.format("%,d", listing.priceBuy())).append(" buy");
-        if (listing.priceSell() != null) summary.append("  ·  ").append(String.format("%,d", listing.priceSell())).append(" sell");
+        if (listing.stock() != null) summary.append(I18n.get("economy_ld.screen.shop.remove.summary.stock", listing.stock()));
+        else summary.append(I18n.get("economy_ld.screen.shop.remove.summary.stock_inf"));
+        if (listing.priceBuy() != null) summary.append("  ·  ").append(I18n.get("economy_ld.screen.shop.remove.summary.buy", String.format("%,d", listing.priceBuy())));
+        if (listing.priceSell() != null) summary.append("  ·  ").append(I18n.get("economy_ld.screen.shop.remove.summary.sell", String.format("%,d", listing.priceSell())));
         itemText.child(tint(summary.toString(), 0xFF7A8FA8));
         itemCard.child(itemText);
         body.child(itemCard);
@@ -1166,10 +1167,10 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         actions.padding(Insets.of(10, 12, 10, 12));
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
         actions.gap(8);
-        actions.child(smallButton("CANCEL", 90, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
+        actions.child(smallButton(I18n.get("economy_ld.screen.shop.btn.cancel"), 90, 32, 0xFF1B2A3B, 0xFF22354A, 0xFF3B526A, b -> closeListingDialog()));
 
         // Red REMOVE button
-        ButtonComponent removeBtn = Components.button(Component.literal("REMOVE"), b -> {
+        ButtonComponent removeBtn = Components.button(Component.literal(I18n.get("economy_ld.screen.shop.btn.remove")), b -> {
             ClientPlayNetworking.send(new RemoveListingC2SPacket(listing.id()));
             closeListingDialog();
         });
@@ -1203,33 +1204,33 @@ public class ShopBrowseScreen extends BaseOwoHandledScreen<StackLayout, ShopBrow
         switch (result.actionType()) {
             case BOUGHT -> {
                 sideColor = 0xFF5FC76C; titleColor = 0xFF8EDB84;
-                title = "PURCHASE CONFIRMED";
-                body = "Bought " + result.quantity() + " × " + result.itemName() + " for " + String.format("%,d", result.lcAmount()) + " LC";
+                title = I18n.get("economy_ld.screen.shop.toast.bought.title");
+                body = I18n.get("economy_ld.screen.shop.toast.bought.body", result.quantity(), result.itemName(), String.format("%,d", result.lcAmount()));
             }
             case SOLD -> {
                 sideColor = 0xFF9C7AE8; titleColor = 0xFFB899F2;
-                title = "SALE CONFIRMED";
-                body = "Sold " + result.quantity() + " × " + result.itemName() + " for " + String.format("%,d", result.lcAmount()) + " LC";
+                title = I18n.get("economy_ld.screen.shop.toast.sold.title");
+                body = I18n.get("economy_ld.screen.shop.toast.sold.body", result.quantity(), result.itemName(), String.format("%,d", result.lcAmount()));
             }
             case RESTOCKED -> {
                 sideColor = 0xFF5FC76C; titleColor = 0xFF8EDB84;
-                title = "RESTOCKED";
-                body = "Added " + result.quantity() + " × " + result.itemName() + " to stock";
+                title = I18n.get("economy_ld.screen.shop.toast.restocked.title");
+                body = I18n.get("economy_ld.screen.shop.toast.restocked.body", result.quantity(), result.itemName());
             }
             case INSUFFICIENT_FUNDS -> {
                 sideColor = 0xFFE05050; titleColor = 0xFFE88080;
-                title = "INSUFFICIENT FUNDS";
-                body = "You need " + String.format("%,d", result.lcAmount()) + " LC. You have " + String.format("%,d", result.playerBalance()) + " LC.";
+                title = I18n.get("economy_ld.screen.shop.toast.insufficient.title");
+                body = I18n.get("economy_ld.screen.shop.toast.insufficient.body", String.format("%,d", result.lcAmount()), String.format("%,d", result.playerBalance()));
             }
             case OUT_OF_STOCK -> {
                 sideColor = 0xFFE05050; titleColor = 0xFFE88080;
-                title = "OUT OF STOCK";
-                body = result.itemName() + " has no stock available.";
+                title = I18n.get("economy_ld.screen.shop.toast.out_of_stock.title");
+                body = I18n.get("economy_ld.screen.shop.toast.out_of_stock.body", result.itemName());
             }
             case SHOP_FULL -> {
                 sideColor = 0xFFE05050; titleColor = 0xFFE88080;
-                title = "SHOP IS FULL";
-                body = "Shop has enough of " + result.itemName() + ".";
+                title = I18n.get("economy_ld.screen.shop.toast.shop_full.title");
+                body = I18n.get("economy_ld.screen.shop.toast.shop_full.body", result.itemName());
             }
             default -> { return; }
         }

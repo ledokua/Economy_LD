@@ -1269,6 +1269,40 @@ public abstract class AbstractJdbcEconomyDatabase implements EconomyDatabase {
     }
 
     @Override
+    public CompletableFuture<Void> enqueueCurrencyDelivery(UUID playerUuid, long amount, String reason) {
+        if (amount <= 0L) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("amount must be > 0"));
+        }
+        String safeReason = reason == null || reason.isBlank() ? "EXTERNAL_DELIVERY" : reason;
+        return CompletableFuture.runAsync(() -> {
+            try (Connection conn = connection()) {
+                enqueuePendingLc(conn, playerUuid, amount, safeReason);
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to enqueue currency delivery for " + playerUuid, e);
+            }
+        }, executor);
+    }
+
+    @Override
+    public CompletableFuture<Void> enqueueItemDelivery(UUID playerUuid, ItemStack stack, int quantity, String reason) {
+        if (stack == null || stack.isEmpty()) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("stack must not be empty"));
+        }
+        if (quantity <= 0) {
+            return CompletableFuture.failedFuture(new IllegalArgumentException("quantity must be > 0"));
+        }
+        String safeReason = reason == null || reason.isBlank() ? "EXTERNAL_DELIVERY" : reason;
+        String itemNbt = net.ledok.economy_ld.util.ItemStackSerializationUtil.toBase64(stack.copyWithCount(1));
+        return CompletableFuture.runAsync(() -> {
+            try (Connection conn = connection()) {
+                enqueuePendingItem(conn, playerUuid, itemNbt, quantity, safeReason);
+            } catch (SQLException e) {
+                throw new RuntimeException("Failed to enqueue item delivery for " + playerUuid, e);
+            }
+        }, executor);
+    }
+
+    @Override
     public CompletableFuture<Integer> getEffectiveListingLimit(UUID playerUuid, int defaultLimit) {
         return CompletableFuture.supplyAsync(() -> {
             int bonus = 0;

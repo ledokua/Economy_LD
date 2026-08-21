@@ -1,6 +1,7 @@
 package net.ledok.economy_ld;
 
 import net.fabricmc.api.ModInitializer;
+import net.fabricmc.loader.api.FabricLoader;
 import net.fabricmc.fabric.api.command.v2.CommandRegistrationCallback;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents;
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
@@ -34,6 +35,10 @@ public class EconomyLdMod implements ModInitializer {
         AuctionNetworking.registerPayloadTypes();
         ShopNetworking.registerServerReceivers();
         AuctionNetworking.registerServerReceivers();
+
+        if (FabricLoader.getInstance().isModLoaded("ftbquests")) {
+            net.ledok.economy_ld.integration.ftbquests.FtbQuestsIntegration.register();
+        }
         CommandRegistrationCallback.EVENT.register((dispatcher, registryAccess, environment) -> {
             BalanceCommand.register(dispatcher);
             PayCommand.register(dispatcher);
