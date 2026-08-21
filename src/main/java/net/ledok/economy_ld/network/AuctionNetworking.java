@@ -3,6 +3,8 @@ package net.ledok.economy_ld.network;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.ledok.busylib.BusyReasons;
+import net.ledok.busylib.BusyState;
 import net.ledok.economy_ld.EconomyLdMod;
 import net.ledok.economy_ld.auction.AuctionRecord;
 import net.ledok.economy_ld.auction.PendingDelivery;
@@ -124,7 +126,20 @@ public final class AuctionNetworking {
                         ServerPlayNetworking.send(player, new InboxSyncS2CPacket(deliveries))));
     }
 
+    private static boolean isBlockedByBusyState(ServerPlayer player, String translationKey) {
+        for (String reason : BusyState.getReasons(player.getUUID())) {
+            if (BusyReasons.isCombatReason(reason)) {
+                player.sendSystemMessage(Component.translatable(translationKey));
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void handlePlaceAuction(PlaceAuctionC2SPacket payload, ServerPlayer player) {
+        if (isBlockedByBusyState(player, "economy_ld.auction.blocked_busy")) {
+            return;
+        }
         EconomyManager manager = EconomyManager.getInstance();
         ItemStack item = ItemStack.parseOptional(player.registryAccess(), payload.itemNbt());
         if (item.isEmpty()) {
@@ -388,6 +403,9 @@ public final class AuctionNetworking {
     }
 
     private static void handleClaimInboxItem(ClaimInboxItemC2SPacket payload, ServerPlayer player) {
+        if (isBlockedByBusyState(player, "economy_ld.inbox.blocked_busy")) {
+            return;
+        }
         EconomyManager manager = EconomyManager.getInstance();
         manager.deliveryBelongsToPlayer(payload.deliveryId(), player.getUUID())
                 .thenCompose(belongs -> {
@@ -409,6 +427,9 @@ public final class AuctionNetworking {
     }
 
     private static void handleClaimAllInbox(ServerPlayer player) {
+        if (isBlockedByBusyState(player, "economy_ld.inbox.blocked_busy")) {
+            return;
+        }
         EconomyManager manager = EconomyManager.getInstance();
         manager.claimAllDeliveries(player.getUUID())
                 .whenComplete((deliveries, error) -> player.server.execute(() -> {

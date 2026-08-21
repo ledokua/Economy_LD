@@ -44,6 +44,9 @@ repositories {
     mavenCentral()
     maven { url 'https://maven.wispforest.io/releases/' }
     maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
+    // FTB Quests / FTB Library (optional integration, compile-only)
+    maven { url 'https://maven.ftb.dev/releases' }
+    maven { url 'https://maven.architectury.dev/' }
 }
 
 dependencies {
@@ -55,6 +58,12 @@ dependencies {
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
     modImplementation "io.wispforest:owo-lib:${project.owo_version}"
 
+    modImplementation fileTree(
+            dir: "${project.projectDir}/libs",
+            include: ["BusyLib-*.jar"],
+            exclude: ["*sources.jar"]
+    )
+
     implementation "com.zaxxer:HikariCP:6.2.1"
     include "com.zaxxer:HikariCP:6.2.1"
 
@@ -65,6 +74,12 @@ dependencies {
     include "org.mariadb.jdbc:mariadb-java-client:3.5.6"
 
     modCompileOnly "net.luckperms:api:5.4"
+
+    // Optional FTB Quests integration (currency reward type). Compile-only so the
+    // mod still loads without FTB Quests installed; runtime is guarded by isModLoaded.
+    modCompileOnly("dev.ftb.mods:ftb-quests-fabric:2101.1.24") { transitive = false }
+    modCompileOnly("dev.ftb.mods:ftb-library-fabric:2101.1.31") { transitive = false }
+    modCompileOnly("dev.architectury:architectury-fabric:13.0.8") { transitive = false }
 }
 
 processResources {

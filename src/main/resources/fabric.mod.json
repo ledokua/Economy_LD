@@ -21,9 +21,11 @@
     "fabricloader": ">=${loader_version}",
     "fabric-api": "*",
     "minecraft": "${minecraft_version}",
-    "owo": ">=0.12.15"
+    "owo": ">=0.12.15",
+    "busylib": "*"
   },
   "suggests": {
-    "luckperms": "*"
+    "luckperms": "*",
+    "ftbquests": "*"
   }
 }

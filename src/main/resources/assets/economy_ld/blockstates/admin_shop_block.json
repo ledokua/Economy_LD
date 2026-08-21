@@ -1,5 +1,8 @@
 {
   "variants": {
-    "": { "model": "economy_ld:block/admin_shop_block" }
+    "facing=north": { "model": "economy_ld:block/admin_shop_block" },
+    "facing=east":  { "model": "economy_ld:block/admin_shop_block", "y": 90 },
+    "facing=south": { "model": "economy_ld:block/admin_shop_block", "y": 180 },
+    "facing=west":  { "model": "economy_ld:block/admin_shop_block", "y": 270 }
   }
 }

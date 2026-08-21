@@ -295,6 +295,14 @@ public final class EconomyManager {
         return requireDatabase().cleanExpiredDeliveries();
     }
 
+    public CompletableFuture<Void> deliverCurrency(UUID playerUuid, long amount, String reason) {
+        return requireDatabase().enqueueCurrencyDelivery(playerUuid, amount, reason);
+    }
+
+    public CompletableFuture<Void> deliverItem(UUID playerUuid, ItemStack stack, int quantity, String reason) {
+        return requireDatabase().enqueueItemDelivery(playerUuid, stack, quantity, reason);
+    }
+
     public CompletableFuture<Integer> getEffectiveListingLimit(UUID playerUuid, int defaultLimit) {
         return requireDatabase().getEffectiveListingLimit(playerUuid, defaultLimit);
     }

@@ -11,6 +11,7 @@ import io.wispforest.owo.ui.container.OverlayContainer;
 import io.wispforest.owo.ui.container.StackLayout;
 import io.wispforest.owo.ui.core.*;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.minecraft.client.resources.language.I18n;
 import net.ledok.economy_ld.auction.AuctionRecord;
 import net.ledok.economy_ld.network.packet.c2s.BuyoutAuctionC2SPacket;
 import net.ledok.economy_ld.network.packet.c2s.CancelAuctionC2SPacket;
@@ -50,10 +51,10 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         TIME_LEFT, PRICE_ASC, PRICE_DESC, NAME;
         SortMode next() { return values()[(ordinal() + 1) % values().length]; }
         String label() { return switch (this) {
-            case TIME_LEFT  -> "SORT · TIME";
-            case PRICE_ASC  -> "SORT · PRICE ↑";
-            case PRICE_DESC -> "SORT · PRICE ↓";
-            case NAME       -> "SORT · NAME";
+            case TIME_LEFT  -> I18n.get("economy_ld.screen.auction.sort.time");
+            case PRICE_ASC  -> I18n.get("economy_ld.screen.auction.sort.price_asc");
+            case PRICE_DESC -> I18n.get("economy_ld.screen.auction.sort.price_desc");
+            case NAME       -> I18n.get("economy_ld.screen.auction.sort.name");
         };}
     }
 
@@ -87,7 +88,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
 
     // ─── Lifecycle ────────────────────────────────────────────────────────────
     public AuctionBrowseScreen() {
-        super(Component.literal("Auction House"));
+        super(Component.translatable("economy_ld.screen.auction.title"));
     }
 
     @Override
@@ -168,14 +169,14 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         // Title
         FlowLayout title = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         title.gap(2);
-        title.child(tint("Auction House", C_INK));
+        title.child(tint(I18n.get("economy_ld.screen.auction.title"), C_INK));
         FlowLayout sub = Containers.horizontalFlow(Sizing.content(), Sizing.content());
         sub.gap(s(6));
-        sub.child(tag("GLOBAL MARKET", C_AMBER));
+        sub.child(tag(I18n.get("economy_ld.screen.auction.global_market"), C_AMBER));
         if (!compact) {
-            this.auctionCountLabel = tint("0 active", C_INK_MID);
+            this.auctionCountLabel = tint(I18n.get("economy_ld.screen.auction.active_count", 0), C_INK_MID);
             sub.child(this.auctionCountLabel);
-            this.balanceLabel = tint("BAL  ·  0 LC", 0xFF9D81EA);
+            this.balanceLabel = tint(I18n.get("economy_ld.screen.auction.balance", "0"), 0xFF9D81EA);
             sub.child(this.balanceLabel);
         }
         title.child(sub);
@@ -193,7 +194,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
             refreshUi(true);
         });
         ctrl.child(this.sortButton);
-        ctrl.child(smallBtn(compact ? "+" : "+ LIST ITEM", compact ? s(32) : 110, s(32), C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> openItemPicker()));
+        ctrl.child(smallBtn(compact ? "+" : I18n.get("economy_ld.screen.auction.list_item"), compact ? s(32) : 110, s(32), C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> openItemPicker()));
         ctrl.child(smallBtn("✕", s(32), s(32), 0xFF132131, 0xFF193047, C_HAIR_HI, b -> onClose()));
         header.child(ctrl);
         return header;
@@ -205,16 +206,15 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         FlowLayout bar = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(s(36)));
         bar.surface(Surface.flat(C_PANEL2).and(Surface.outline(C_HAIR)));
         bar.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
-        bar.padding(Insets.both(0, s(8)));
+        bar.padding(Insets.both(0, s(8)).withLeft(4));
         bar.gap(2);
 
         for (Tab t : Tab.values()) {
-            String label = switch (t) { case ALL -> "ALL"; case MY_LISTINGS -> "MY LISTINGS"; case MY_BIDS -> "MY BIDS"; };
-            boolean active = t == activeTab;
-            int fill   = active ? C_AMBER_DK : 0xFF132131;
-            int hover  = active ? C_AMBER    : 0xFF193047;
-            int border = active ? C_AMBER    : C_HAIR_HI;
-            int textC  = active ? 0xFF201210 : C_INK_MID;
+            String label = switch (t) {
+                case ALL -> I18n.get("economy_ld.screen.auction.tab.all");
+                case MY_LISTINGS -> I18n.get("economy_ld.screen.auction.tab.my_listings");
+                case MY_BIDS -> I18n.get("economy_ld.screen.auction.tab.my_bids");
+            };
             Tab tt = t;
             ButtonComponent btn = Components.button(Component.literal(label), b -> {
                 activeTab = tt;
@@ -222,7 +222,13 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
                 refreshUi(true);
             });
             btn.sizing(Sizing.content(), Sizing.fixed(s(28)));
+            // Evaluate active state inside the renderer so the highlight always
+            // tracks the current activeTab (the tab bar is not rebuilt on tab change).
             btn.renderer((ctx, rendered, delta) -> {
+                boolean active = tt == activeTab;
+                int fill   = active ? C_AMBER_DK : 0xFF132131;
+                int hover  = active ? C_AMBER    : 0xFF193047;
+                int border = active ? C_AMBER    : C_HAIR_HI;
                 int bg = rendered.isHoveredOrFocused() ? hover : fill;
                 ctx.fill(rendered.getX(), rendered.getY(), rendered.getX() + rendered.getWidth(), rendered.getY() + rendered.getHeight(), bg);
                 ctx.drawRectOutline(rendered.getX(), rendered.getY(), rendered.getWidth(), rendered.getHeight(), border);
@@ -240,10 +246,10 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
             sf.child(tint(">", C_INK_DIM));
             TextBoxComponent field = Components.textBox(Sizing.expand(), searchQuery);
             field.setMaxLength(64);
-            field.setSuggestion(searchQuery.isEmpty() ? "name  |  @mod  |  #tag" : "");
+            field.setSuggestion(searchQuery.isEmpty() ? I18n.get("economy_ld.screen.auction.search_hint") : "");
             field.onChanged().subscribe(v -> {
                 searchQuery = v;
-                field.setSuggestion(v.isEmpty() ? "name  |  @mod  |  #tag" : "");
+                field.setSuggestion(v.isEmpty() ? I18n.get("economy_ld.screen.auction.search_hint") : "");
                 currentPage = 0;
                 refreshUi(true);
             });
@@ -282,13 +288,13 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
 
         if (prevButton != null) prevButton.active(currentPage > 0);
         if (nextButton != null) nextButton.active(currentPage < totalPages - 1);
-        if (pageLabel != null) pageLabel.text(Component.literal("PAGE  " + String.format("%02d", currentPage + 1) + " / " + String.format("%02d", totalPages)));
+        if (pageLabel != null) pageLabel.text(Component.literal(I18n.get("economy_ld.screen.auction.page", String.format("%02d", currentPage + 1), String.format("%02d", totalPages))));
 
         // Update header labels
         if (auctionCountLabel != null)
-            auctionCountLabel.text(Component.literal(all.size() + (all.size() == 1 ? " active" : " active")));
+            auctionCountLabel.text(Component.literal(I18n.get("economy_ld.screen.auction.active_count", all.size())));
         if (balanceLabel != null)
-            balanceLabel.text(Component.literal("BAL  ·  " + String.format("%,d", AuctionClientState.getPlayerBalance()) + " LC"));
+            balanceLabel.text(Component.literal(I18n.get("economy_ld.screen.auction.balance", String.format("%,d", AuctionClientState.getPlayerBalance()))));
 
         int sv = AuctionClientState.getSyncVersion();
         boolean syncNew = sv != lastSyncVersion;
@@ -321,9 +327,9 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         body.surface(Surface.flat(C_ROW_A));
         body.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
         body.gap(8);
-        body.child(tint(activeTab == Tab.ALL ? "No active auctions." : activeTab == Tab.MY_LISTINGS ? "You have no active listings." : "You are not bidding on anything.", C_INK_MID));
+        body.child(tint(activeTab == Tab.ALL ? I18n.get("economy_ld.screen.auction.empty.all") : activeTab == Tab.MY_LISTINGS ? I18n.get("economy_ld.screen.auction.empty.my_listings") : I18n.get("economy_ld.screen.auction.empty.my_bids"), C_INK_MID));
         if (activeTab == Tab.ALL || activeTab == Tab.MY_LISTINGS)
-            body.child(smallBtn("+ LIST AN ITEM", 160, 32, C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> openItemPicker()));
+            body.child(smallBtn(I18n.get("economy_ld.screen.auction.list_an_item"), 160, 32, C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> openItemPicker()));
         return body;
     }
 
@@ -339,13 +345,13 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         colH.padding(Insets.of(4));
         colH.gap(6);
         int iW = compact ? 140 : 200, sW = compact ? 0 : 70, bW = compact ? 60 : 80, tW = compact ? 55 : 70;
-        colH.child(cellLabel("ITEM", iW, C_INK_DIM));
-        if (!compact) colH.child(cellLabel("SELLER", sW, C_INK_DIM));
-        colH.child(cellLabelR("CURRENT BID", bW, C_INK_DIM));
-        colH.child(cellLabelR("TIME LEFT", tW, C_INK_DIM));
-        if (!compact) colH.child(cellLabelR("BUYOUT", bW, C_INK_DIM));
+        colH.child(cellLabel(I18n.get("economy_ld.screen.auction.col.item"), iW, C_INK_DIM));
+        if (!compact) colH.child(cellLabel(I18n.get("economy_ld.screen.auction.col.seller"), sW, C_INK_DIM));
+        colH.child(cellLabelR(I18n.get("economy_ld.screen.auction.col.current_bid"), bW, C_INK_DIM));
+        colH.child(cellLabelR(I18n.get("economy_ld.screen.auction.col.time_left"), tW, C_INK_DIM));
+        if (!compact) colH.child(cellLabelR(I18n.get("economy_ld.screen.auction.col.buyout"), bW, C_INK_DIM));
         colH.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
-        colH.child(cellLabelR("ACTIONS", 120, C_INK_DIM));
+        colH.child(cellLabelR(I18n.get("economy_ld.screen.auction.col.actions"), 120, C_INK_DIM));
         body.child(colH);
 
         int start = currentPage * listingsPerPage;
@@ -387,7 +393,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
             FlowLayout sellerCell = Containers.verticalFlow(Sizing.fixed(sW), Sizing.content());
             sellerCell.gap(1);
             sellerCell.child(tint(a.sellerName(), isMine ? C_AMBER : C_INK_MID));
-            if (isMine) sellerCell.child(tint("(you)", C_INK_DIM));
+            if (isMine) sellerCell.child(tint(I18n.get("economy_ld.screen.auction.you"), C_INK_DIM));
             row.child(sellerCell);
         }
 
@@ -399,7 +405,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         boolean hasBids = a.bidderUuid() != null;
         int bidColor = isMyBid ? C_AMBER : (hasBids ? C_GREEN : C_INK_MID);
         bidCell.child(cellLabelR(String.format("%,d", a.currentBid()) + " LC", bW, bidColor));
-        if (isMyBid && !compact) bidCell.child(cellLabelR("(your bid)", bW, C_INK_DIM));
+        if (isMyBid && !compact) bidCell.child(cellLabelR(I18n.get("economy_ld.screen.auction.your_bid"), bW, C_INK_DIM));
         row.child(bidCell);
 
         // Time left
@@ -421,7 +427,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
 
         if (isMine) {
             boolean canCancel = !hasBids;
-            ButtonComponent cancel = Components.button(Component.literal("CANCEL"), b -> {
+            ButtonComponent cancel = Components.button(Component.literal(I18n.get("economy_ld.screen.auction.btn.cancel")), b -> {
                 if (canCancel) ClientPlayNetworking.send(new CancelAuctionC2SPacket(a.id()));
                 else openCancelBlockedDialog();
             });
@@ -434,11 +440,11 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
             actions.child(cancel);
         } else {
             if (a.buyoutPrice() != null) {
-                actions.child(smallBtn("BUY NOW", s(62), s(22), 0xFF2A1E08, 0xFF3D2E10, 0xFFF5B042, b -> openBuyoutConfirm(a)));
+                actions.child(smallBtn(I18n.get("economy_ld.screen.auction.btn.buy_now"), s(62), s(22), 0xFF2A1E08, 0xFF3D2E10, 0xFFF5B042, b -> openBuyoutConfirm(a)));
             }
             boolean canBid = !isMine && remaining > 0;
             if (canBid) {
-                actions.child(smallBtn("BID", s(48), s(22), 0xFF0D1E30, 0xFF142A42, 0xFF4A90D8, b -> openBidDialog(a)));
+                actions.child(smallBtn(I18n.get("economy_ld.screen.auction.btn.bid"), s(48), s(22), 0xFF0D1E30, 0xFF142A42, 0xFF4A90D8, b -> openBidDialog(a)));
             }
         }
 
@@ -453,10 +459,10 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         footer.padding(Insets.of(s(12)));
         footer.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
 
-        this.prevButton = smallBtn("◀ PREV", s(78), s(30), 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
+        this.prevButton = smallBtn("◀ " + I18n.get("economy_ld.screen.auction.btn.prev"), s(78), s(30), 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
         prevButton.onPress(b -> { if (currentPage > 0) { currentPage--; refreshUi(true); } });
 
-        this.nextButton = smallBtn("NEXT ▶", s(78), s(30), 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
+        this.nextButton = smallBtn(I18n.get("economy_ld.screen.auction.btn.next") + " ▶", s(78), s(30), 0xFF1A2736, 0xFF223347, 0xFF3A4F67);
         nextButton.onPress(b -> { currentPage++; refreshUi(true); });
 
         FlowLayout center = Containers.horizontalFlow(Sizing.expand(), Sizing.content());
@@ -465,7 +471,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
 
         this.pageBars = Containers.horizontalFlow(Sizing.fixed(150), Sizing.fixed(4));
         this.pageBars.gap(2);
-        this.pageLabel = tint("PAGE  01 / 01", C_INK_MID);
+        this.pageLabel = tint(I18n.get("economy_ld.screen.auction.page", "01", "01"), C_INK_MID);
         center.child(pageBars);
         center.child(pageLabel);
 
@@ -560,7 +566,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         head.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
         FlowLayout htxt = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         htxt.gap(2);
-        htxt.child(tint("Place a Bid", C_INK));
+        htxt.child(tint(I18n.get("economy_ld.screen.auction.dialog.bid.title"), C_INK));
         htxt.child(tint(a.itemStack().getItem().toString().toUpperCase(), C_INK_DIM));
         head.child(htxt);
         head.child(smallBtn("✕", 28, 28, 0xFF132131, 0xFF193047, C_HAIR_HI, b -> closeDialog()));
@@ -575,17 +581,17 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         info.surface(Surface.flat(C_ROW_A).and(Surface.outline(C_HAIR)));
         info.padding(Insets.of(10));
         info.gap(4);
-        info.child(tint("CURRENT BID  ·  " + String.format("%,d", a.currentBid()) + " LC", C_INK_MID));
-        info.child(tint("MIN NEXT BID  ·  " + String.format("%,d", minBid) + " LC", C_AMBER));
+        info.child(tint(I18n.get("economy_ld.screen.auction.dialog.bid.current", String.format("%,d", a.currentBid())), C_INK_MID));
+        info.child(tint(I18n.get("economy_ld.screen.auction.dialog.bid.min_next", String.format("%,d", minBid)), C_AMBER));
         panel.child(info);
 
         // Bid field
         FlowLayout fieldRow = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
         fieldRow.gap(6);
         FlowLayout fh = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        fh.child(tint("YOUR BID", C_INK_MID));
+        fh.child(tint(I18n.get("economy_ld.screen.auction.dialog.bid.your_bid"), C_INK_MID));
         fh.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
-        fh.child(tint("must be > current bid", C_INK_DIM));
+        fh.child(tint(I18n.get("economy_ld.screen.auction.dialog.bid.must_be_greater"), C_INK_DIM));
         fieldRow.child(fh);
 
         FlowLayout inputWrap = Containers.horizontalFlow(Sizing.fill(100), Sizing.fixed(40));
@@ -609,11 +615,11 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
         actions.gap(6);
-        actions.child(smallBtn("CANCEL", 90, 32, 0xFF1B2A3B, 0xFF22354A, C_HAIR_HI, b -> closeDialog()));
-        actions.child(smallBtn("CONFIRM BID", 112, 32, 0xFF0D2540, 0xFF142E4E, 0xFF4A90D8, b -> {
+        actions.child(smallBtn(I18n.get("economy_ld.screen.auction.btn.cancel"), 90, 32, 0xFF1B2A3B, 0xFF22354A, C_HAIR_HI, b -> closeDialog()));
+        actions.child(smallBtn(I18n.get("economy_ld.screen.auction.btn.confirm_bid"), 112, 32, 0xFF0D2540, 0xFF142E4E, 0xFF4A90D8, b -> {
             long bid = parseLong(bidVal[0], 0);
             if (bid <= a.currentBid()) {
-                err.text(Component.literal("Bid must be greater than " + String.format("%,d", a.currentBid()) + " LC."));
+                err.text(Component.literal(I18n.get("economy_ld.screen.auction.dialog.bid.error_greater", String.format("%,d", a.currentBid()))));
                 return;
             }
             ClientPlayNetworking.send(new PlaceBidC2SPacket(a.id(), bid));
@@ -638,8 +644,8 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         head.surface(Surface.flat(0xFF1A1A08).and((ctx, comp) -> ctx.fill(comp.x(), comp.y(), comp.x() + 3, comp.y() + comp.height(), C_AMBER)));
         head.padding(Insets.of(10, 12, 8, 16));
         head.gap(3);
-        head.child(tint("Buy Now", C_AMBER));
-        head.child(tint("INSTANTLY WIN THIS AUCTION", C_INK_DIM));
+        head.child(tint(I18n.get("economy_ld.screen.auction.dialog.buyout.title"), C_AMBER));
+        head.child(tint(I18n.get("economy_ld.screen.auction.dialog.buyout.subtitle"), C_INK_DIM));
         panel.child(head);
 
         panel.child(buildItemCard(a));
@@ -648,16 +654,16 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         info.surface(Surface.flat(C_ROW_A).and(Surface.outline(C_HAIR)));
         info.padding(Insets.of(10));
         info.gap(4);
-        info.child(tint("BUYOUT PRICE  ·  " + String.format("%,d", a.buyoutPrice()) + " LC", C_AMBER));
-        info.child(tint("This will end the auction immediately.", C_INK_MID));
+        info.child(tint(I18n.get("economy_ld.screen.auction.dialog.buyout.price", String.format("%,d", a.buyoutPrice())), C_AMBER));
+        info.child(tint(I18n.get("economy_ld.screen.auction.dialog.buyout.note"), C_INK_MID));
         panel.child(info);
 
         FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
         actions.gap(6);
-        actions.child(smallBtn("CANCEL", 90, 32, 0xFF1B2A3B, 0xFF22354A, C_HAIR_HI, b -> closeDialog()));
+        actions.child(smallBtn(I18n.get("economy_ld.screen.auction.btn.cancel"), 90, 32, 0xFF1B2A3B, 0xFF22354A, C_HAIR_HI, b -> closeDialog()));
         long price = a.buyoutPrice();
-        actions.child(smallBtn("BUY NOW  " + String.format("%,d", price) + " LC", 180, 32, C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> {
+        actions.child(smallBtn(I18n.get("economy_ld.screen.auction.dialog.buyout.confirm", String.format("%,d", price)), 180, 32, C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> {
             ClientPlayNetworking.send(new BuyoutAuctionC2SPacket(a.id()));
             closeDialog();
         }));
@@ -673,11 +679,11 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         panel.surface(Surface.flat(0xFF111C28).and(Surface.outline(C_HAIR_HI)));
         panel.padding(Insets.of(14));
         panel.gap(10);
-        panel.child(tint("Cannot Cancel", C_RED));
-        panel.child(tint("This auction already has bids and cannot be cancelled.", C_INK_MID));
+        panel.child(tint(I18n.get("economy_ld.screen.auction.dialog.cancel_blocked.title"), C_RED));
+        panel.child(tint(I18n.get("economy_ld.screen.auction.dialog.cancel_blocked.body"), C_INK_MID));
         FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
-        actions.child(smallBtn("OK", 70, 32, C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> closeDialog()));
+        actions.child(smallBtn(I18n.get("economy_ld.screen.auction.btn.ok"), 70, 32, C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> closeDialog()));
         panel.child(actions);
         showDialog(panel);
     }
@@ -713,8 +719,8 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         headRow.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
         FlowLayout ht = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         ht.gap(2);
-        ht.child(tint("List an Item", C_INK));
-        ht.child(tint("SELECT AN ITEM FROM YOUR INVENTORY", C_INK_DIM));
+        ht.child(tint(I18n.get("economy_ld.screen.auction.dialog.picker.title"), C_INK));
+        ht.child(tint(I18n.get("economy_ld.screen.auction.dialog.picker.subtitle"), C_INK_DIM));
         headRow.child(ht);
         headRow.child(smallBtn("✕", 28, 28, 0xFF132131, 0xFF193047, C_HAIR_HI, b -> closeDialog()));
         panel.child(headRow);
@@ -727,7 +733,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         if (slots.isEmpty()) {
             FlowLayout empty = Containers.verticalFlow(Sizing.fill(100), Sizing.fixed(60));
             empty.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
-            empty.child(tint("Your inventory is empty.", C_INK_DIM));
+            empty.child(tint(I18n.get("economy_ld.screen.auction.dialog.picker.empty"), C_INK_DIM));
             body.child(empty);
         } else {
             final int COLS = 9;
@@ -770,7 +776,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
 
         FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
-        actions.child(smallBtn("CANCEL", 90, 32, 0xFF1B2A3B, 0xFF22354A, C_HAIR_HI, b -> closeDialog()));
+        actions.child(smallBtn(I18n.get("economy_ld.screen.auction.btn.cancel"), 90, 32, 0xFF1B2A3B, 0xFF22354A, C_HAIR_HI, b -> closeDialog()));
         panel.child(actions);
 
         showDialog(panel);
@@ -795,10 +801,10 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         headRow.alignment(HorizontalAlignment.LEFT, VerticalAlignment.CENTER);
         FlowLayout ht = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         ht.gap(2);
-        ht.child(tint("New Listing", C_INK));
+        ht.child(tint(I18n.get("economy_ld.screen.auction.dialog.list.title"), C_INK));
         ht.child(tint(selectedStack.getItem().toString().toUpperCase(), C_INK_DIM));
         headRow.child(ht);
-        headRow.child(smallBtn("◀ BACK", 70, 28, 0xFF132131, 0xFF193047, C_HAIR_HI, b -> { closeDialog(); openItemPicker(); }));
+        headRow.child(smallBtn("◀ " + I18n.get("economy_ld.screen.auction.btn.back"), 70, 28, 0xFF132131, 0xFF193047, C_HAIR_HI, b -> { closeDialog(); openItemPicker(); }));
         headRow.child(smallBtn("✕", 28, 28, 0xFF132131, 0xFF193047, C_HAIR_HI, b -> closeDialog()));
         panel.child(headRow);
 
@@ -812,39 +818,37 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         FlowLayout ct = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         ct.gap(2);
         ct.child(tint(selectedStack.getHoverName().getString(), C_INK));
-        ct.child(tint("Will be taken from inventory on confirm", C_INK_DIM));
+        ct.child(tint(I18n.get("economy_ld.screen.auction.dialog.list.taken_note"), C_INK_DIM));
         card.child(ct);
         panel.child(card);
 
         // Fields row 1: start price + buyout
         // Fee label — defined before fields so updateFee can be passed as callback
-        LabelComponent feeLabel = tint("Set a start price to see the listing fee.", C_INK_DIM);
+        LabelComponent feeLabel = tint(I18n.get("economy_ld.screen.auction.dialog.list.fee_hint"), C_INK_DIM);
         Runnable updateFee = () -> {
             long price = parseLong(startPriceVal[0], 0);
             if (price > 0) {
                 int feePercent = AuctionClientState.getListingFeePercent();
                 long feeAmount = (price * feePercent) / 100L;
-                feeLabel.text(Component.literal(
-                        "Listing fee: " + String.format("%,d", feeAmount) + " LC (" + feePercent + "%)" +
-                                " — deducted from your wallet at listing time."
-                ));
+                feeLabel.text(Component.literal(I18n.get("economy_ld.screen.auction.dialog.list.fee",
+                        String.format("%,d", feeAmount), feePercent)));
             } else {
-                feeLabel.text(Component.literal("Set a start price to see the listing fee."));
+                feeLabel.text(Component.literal(I18n.get("economy_ld.screen.auction.dialog.list.fee_hint")));
             }
         };
 
         FlowLayout row1 = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         row1.gap(12);
         row1.alignment(HorizontalAlignment.CENTER, VerticalAlignment.CENTER);
-        buildField(row1, "START PRICE", "opening bid", "100", "LC", startPriceVal, true, updateFee);
-        buildField(row1, "BUYOUT PRICE", "0 = no buyout", "0", "LC", buyoutVal, false);
+        buildField(row1, I18n.get("economy_ld.screen.auction.field.start_price"), I18n.get("economy_ld.screen.auction.field.start_price_hint"), "100", "LC", startPriceVal, true, updateFee);
+        buildField(row1, I18n.get("economy_ld.screen.auction.field.buyout"), I18n.get("economy_ld.screen.auction.field.buyout_hint"), "0", "LC", buyoutVal, false);
         panel.child(row1);
 
         // Qty field (only if stackable)
         if (selectedStack.getMaxStackSize() > 1) {
             FlowLayout row2 = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
             row2.gap(12);
-            buildField(row2, "QUANTITY", "how many to sell", "1", "×", qtyVal, false);
+            buildField(row2, I18n.get("economy_ld.screen.auction.field.quantity"), I18n.get("economy_ld.screen.auction.field.quantity_hint"), "1", "×", qtyVal, false);
             panel.child(row2);
         }
 
@@ -852,15 +856,20 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         FlowLayout durationSection = Containers.verticalFlow(Sizing.fill(100), Sizing.content());
         durationSection.gap(6);
         FlowLayout durationHead = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
-        durationHead.child(tint("DURATION", C_INK_MID));
+        durationHead.child(tint(I18n.get("economy_ld.screen.auction.dialog.list.duration"), C_INK_MID));
         durationHead.child(Containers.horizontalFlow(Sizing.expand(), Sizing.content()));
-        LabelComponent selectedDurLabel = tint("1 HOUR", C_AMBER);
+        LabelComponent selectedDurLabel = tint(I18n.get("economy_ld.screen.auction.dur.1h"), C_AMBER);
         durationHead.child(selectedDurLabel);
         durationSection.child(durationHead);
         FlowLayout dBtns = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         dBtns.gap(6);
         record Dur(String label, long secs) {}
-        Dur[] durations = {new Dur("1 HOUR", 3600), new Dur("6 HOURS", 21600), new Dur("24 HOURS", 86400), new Dur("48 HOURS", 172800)};
+        Dur[] durations = {
+                new Dur(I18n.get("economy_ld.screen.auction.dur.1h"), 3600),
+                new Dur(I18n.get("economy_ld.screen.auction.dur.6h"), 21600),
+                new Dur(I18n.get("economy_ld.screen.auction.dur.24h"), 86400),
+                new Dur(I18n.get("economy_ld.screen.auction.dur.48h"), 172800)
+        };
         List<ButtonComponent> durBtnList = new ArrayList<>();
         for (Dur d : durations) {
             long ds = d.secs();
@@ -907,15 +916,15 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         FlowLayout actions = Containers.horizontalFlow(Sizing.fill(100), Sizing.content());
         actions.alignment(HorizontalAlignment.RIGHT, VerticalAlignment.CENTER);
         actions.gap(6);
-        actions.child(smallBtn("CANCEL", 90, 32, 0xFF1B2A3B, 0xFF22354A, C_HAIR_HI, b -> closeDialog()));
-        actions.child(smallBtn("LIST ITEM", 100, 32, C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> {
+        actions.child(smallBtn(I18n.get("economy_ld.screen.auction.btn.cancel"), 90, 32, 0xFF1B2A3B, 0xFF22354A, C_HAIR_HI, b -> closeDialog()));
+        actions.child(smallBtn(I18n.get("economy_ld.screen.auction.btn.list_item"), 100, 32, C_AMBER_DK, C_AMBER, 0xFFF5C870, b -> {
             long startPrice = parseLong(startPriceVal[0], 0);
-            if (startPrice <= 0) { errLabel.text(Component.literal("Starting price must be greater than 0.")); return; }
+            if (startPrice <= 0) { errLabel.text(Component.literal(I18n.get("economy_ld.screen.auction.dialog.list.err_start"))); return; }
             long buyout = parseLong(buyoutVal[0], 0);
-            if (buyout > 0 && buyout <= startPrice) { errLabel.text(Component.literal("Buyout must be greater than start price.")); return; }
+            if (buyout > 0 && buyout <= startPrice) { errLabel.text(Component.literal(I18n.get("economy_ld.screen.auction.dialog.list.err_buyout"))); return; }
             int qty = (int) Math.max(1, parseLong(qtyVal[0], 1));
             if (minecraft.level == null) return;
-            if (!(selectedStack.saveOptional(minecraft.level.registryAccess()) instanceof CompoundTag nbt)) { errLabel.text(Component.literal("Failed to serialize item.")); return; }
+            if (!(selectedStack.saveOptional(minecraft.level.registryAccess()) instanceof CompoundTag nbt)) { errLabel.text(Component.literal(I18n.get("economy_ld.screen.auction.dialog.list.err_serialize"))); return; }
             ClientPlayNetworking.send(new PlaceAuctionC2SPacket(nbt, qty, startPrice, buyout > 0 ? buyout : null, durationSec[0]));
             closeDialog();
         }));
@@ -932,16 +941,16 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         String title, body;
 
         switch (r.actionType()) {
-            case LISTED -> { side = C_GREEN; titleC = C_GREEN; title = "LISTED"; body = r.itemName() + " listed successfully."; }
-            case BID_PLACED -> { side = 0xFF4A90D8; titleC = 0xFF7AB8F0; title = "BID PLACED"; body = "Bid of " + String.format("%,d", r.lcAmount()) + " LC on " + r.itemName(); }
-            case OUTBID -> { side = C_AMBER; titleC = C_AMBER; title = "OUTBID"; body = "You were outbid on " + r.itemName() + "."; }
-            case BUYOUT -> { side = C_AMBER; titleC = C_AMBER; title = "BOUGHT"; body = "Won " + r.itemName() + " for " + String.format("%,d", r.lcAmount()) + " LC"; }
-            case ITEM_SENT_TO_INBOX -> { side = C_AMBER; titleC = C_AMBER; title = "ITEM SENT TO INBOX"; body = "Open /ah inbox to collect your item."; }
-            case CANCELLED -> { side = C_INK_MID; titleC = C_INK_MID; title = "CANCELLED"; body = r.itemName() + " listing cancelled."; }
-            case INSUFFICIENT_FUNDS -> { side = C_RED; titleC = 0xFFE88080; title = "INSUFFICIENT FUNDS"; body = "Need " + String.format("%,d", r.lcAmount()) + " LC."; }
-            case NOT_ENOUGH_ITEMS -> { side = C_RED; titleC = 0xFFE88080; title = "NOT ENOUGH ITEMS"; body = "You don't have enough " + r.itemName() + " in your inventory."; }
-            case LIMIT_REACHED -> { side = C_RED; titleC = 0xFFE88080; title = "LIMIT REACHED"; body = "You have reached your listing limit."; }
-            case ALREADY_ENDED -> { side = C_RED; titleC = 0xFFE88080; title = "ALREADY ENDED"; body = r.itemName() + " auction has ended."; }
+            case LISTED -> { side = C_GREEN; titleC = C_GREEN; title = I18n.get("economy_ld.screen.auction.toast.listed.title"); body = I18n.get("economy_ld.screen.auction.toast.listed.body", r.itemName()); }
+            case BID_PLACED -> { side = 0xFF4A90D8; titleC = 0xFF7AB8F0; title = I18n.get("economy_ld.screen.auction.toast.bid_placed.title"); body = I18n.get("economy_ld.screen.auction.toast.bid_placed.body", String.format("%,d", r.lcAmount()), r.itemName()); }
+            case OUTBID -> { side = C_AMBER; titleC = C_AMBER; title = I18n.get("economy_ld.screen.auction.toast.outbid.title"); body = I18n.get("economy_ld.screen.auction.toast.outbid.body", r.itemName()); }
+            case BUYOUT -> { side = C_AMBER; titleC = C_AMBER; title = I18n.get("economy_ld.screen.auction.toast.bought.title"); body = I18n.get("economy_ld.screen.auction.toast.bought.body", r.itemName(), String.format("%,d", r.lcAmount())); }
+            case ITEM_SENT_TO_INBOX -> { side = C_AMBER; titleC = C_AMBER; title = I18n.get("economy_ld.screen.auction.toast.inbox.title"); body = I18n.get("economy_ld.screen.auction.toast.inbox.body"); }
+            case CANCELLED -> { side = C_INK_MID; titleC = C_INK_MID; title = I18n.get("economy_ld.screen.auction.toast.cancelled.title"); body = I18n.get("economy_ld.screen.auction.toast.cancelled.body", r.itemName()); }
+            case INSUFFICIENT_FUNDS -> { side = C_RED; titleC = 0xFFE88080; title = I18n.get("economy_ld.screen.auction.toast.insufficient.title"); body = I18n.get("economy_ld.screen.auction.toast.insufficient.body", String.format("%,d", r.lcAmount())); }
+            case NOT_ENOUGH_ITEMS -> { side = C_RED; titleC = 0xFFE88080; title = I18n.get("economy_ld.screen.auction.toast.not_enough.title"); body = I18n.get("economy_ld.screen.auction.toast.not_enough.body", r.itemName()); }
+            case LIMIT_REACHED -> { side = C_RED; titleC = 0xFFE88080; title = I18n.get("economy_ld.screen.auction.toast.limit.title"); body = I18n.get("economy_ld.screen.auction.toast.limit.body"); }
+            case ALREADY_ENDED -> { side = C_RED; titleC = 0xFFE88080; title = I18n.get("economy_ld.screen.auction.toast.ended.title"); body = I18n.get("economy_ld.screen.auction.toast.ended.body", r.itemName()); }
             default -> { return; }
         }
 
@@ -974,7 +983,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
         FlowLayout ct = Containers.verticalFlow(Sizing.expand(), Sizing.content());
         ct.gap(2);
         ct.child(tint(a.itemStack().getHoverName().getString() + (a.quantity() > 1 ? " ×" + a.quantity() : ""), C_INK));
-        ct.child(tint("Seller: " + a.sellerName(), C_INK_DIM));
+        ct.child(tint(I18n.get("economy_ld.screen.auction.seller_prefix", a.sellerName()), C_INK_DIM));
         card.child(ct);
         return card;
     }
@@ -1019,7 +1028,7 @@ public class AuctionBrowseScreen extends BaseOwoScreen<StackLayout> {
     }
 
     private static String formatTime(long sec) {
-        if (sec <= 0) return "ENDED";
+        if (sec <= 0) return I18n.get("economy_ld.screen.auction.time.ended");
         if (sec < 60) return sec + "s";
         if (sec < 3600) return (sec / 60) + "m";
         if (sec < 86400) return (sec / 3600) + "h " + ((sec % 3600) / 60) + "m";
